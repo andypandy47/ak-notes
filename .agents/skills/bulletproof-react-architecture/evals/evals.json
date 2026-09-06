@@ -1,0 +1,82 @@
+{
+  "skill_name": "bulletproof-react-architecture",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "ok we're adding a notifications feature to the dashboard app (the one that uses react-query everywhere). where do i even start with the folder setup, im tired of just dumping files in components/",
+      "expected_output": "Creates src/features/notifications/ with only the subfolders actually needed, not all seven by default. Points out that shared components/ shouldn't hold feature-specific files. Doesn't invent cross-feature imports.",
+      "should_trigger": true,
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "quick q - i've got GET /api/discussions/:id and i'm currently just calling fetch() straight in the DiscussionPage component, is that fine or should this live somewhere else. we're on react-query 5",
+      "expected_output": "Acknowledges that if this is genuinely a single, non-reused call, inline is an acceptable choice - not just 'move it to api/' unconditionally. Also recommends the v5 queryOptions pattern for the case where it's worth extracting: types, a fetcher, and queryOptions in the feature's api/ folder.",
+      "should_trigger": true,
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "can you look at this and tell me why it feels messy\n\nconst [state, setState] = useState({\n  user: null,\n  discussions: [],\n  isModalOpen: false,\n  formValues: { title: '', body: '' },\n  loading: false\n})\n\neverything updates through one setState call and i think that's why my modal re-renders the whole discussion list every time",
+      "expected_output": "Identifies that this mixes server cache state (discussions), form state (formValues), and application state (isModalOpen) into one object, naming each category specifically rather than saying 'multiple categories' generically. Recommends react-query for discussions, and explicitly recommends eliminating the manual loading flag in favor of react-query's isPending/isLoading rather than just remapping loading to a different tool and keeping it as a separate field. Recommends a form library for formValues with an actual code example (schema and resolver setup, or equivalent), not just naming the library. Explains the re-render fix concretely: separating isModalOpen into its own useState, and isolating the discussion list from modal-triggered re-renders through component composition (e.g. passing it as children or a separately-subscribed component), not just 'use separate useState calls.'",
+      "should_trigger": true,
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "for our SPA login flow, is it bad practice to just localStorage.setItem the jwt after the user logs in? our backend team says cookies are 'more work' so trying to figure out if its worth pushing for",
+      "expected_output": "Explains the XSS risk of localStorage for token storage and recommends HttpOnly cookies as the safer default. Acknowledges the real backend cost of the cookie approach - CSRF protection and SameSite configuration - rather than dismissing 'more work' as unfounded, and frames it as a one-time setup cost versus an unbounded token-leak risk. Does not claim client-side storage choice replaces server-side enforcement.",
+      "should_trigger": true,
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "restructuring an old CRA app that's basically one giant src/components folder with 80 files in it, most unrelated to each other. where do i even begin",
+      "expected_output": "Recommends migrating toward feature-based folders under src/features/, moving genuinely shared components into a slimmer components/, and setting up the ESLint import restriction rules to enforce the new boundaries going forward, rather than just eyeballing it.",
+      "should_trigger": true,
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "need a fibonacci function in ts for a leetcode-style interview prep thing, memoized version if you can",
+      "expected_output": "Just writes the function. No feature folder discussion, no architecture guidance. Nothing here is structural.",
+      "should_trigger": false,
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "whats the actual difference between useMemo and useCallback, i always mix them up",
+      "expected_output": "Direct explanation of the two hooks. General React knowledge, not a structural or architectural question, so this shouldn't pull in feature-folder or state-category guidance even though it's about React state.",
+      "should_trigger": false,
+      "files": []
+    },
+    {
+      "id": 8,
+      "prompt": "our next.js app is using the app router, i have a server component that fetches data and passes a huge object down into a client component. is this a performance problem",
+      "expected_output": "This is closer to server/client component serialization, a Next.js-specific RSC boundary concern, not covered by this skill's folder-structure or state-category content. A good answer here should reason about serialization cost directly rather than forcing in feature-folder or client-state-category guidance that doesn't fit the question. Near-miss: touches performance and React, but the skill's performance.md doesn't cover RSC boundaries specifically, so this tests whether the skill over-applies its performance section to something adjacent but different.",
+      "should_trigger": false,
+      "files": []
+    },
+    {
+      "id": 9,
+      "prompt": "is redux still worth learning in 2026 or should i just default to zustand for everything now",
+      "expected_output": "This is an opinion or comparison question about which state library to learn, not a question about where a specific piece of state in an actual app should live. The skill's state-management categories (component, application, server cache, form, URL) are about placement decisions, not library popularity debates, so this is a near-miss that shouldn't force the five-category framework onto what's really a general career or tooling question.",
+      "should_trigger": false,
+      "files": []
+    },
+    {
+      "id": 10,
+      "prompt": "im prototyping a quick idea this weekend, just one page that fetches a list of recipes and shows them, no auth, throwaway project probably won't touch it again after this weekend. should i set up the whole features/ folder thing for this",
+      "expected_output": "Says no, or at least pushes back on it. A flat src/ with a couple files is correct for a one-page throwaway prototype. Should reference the scale check (one feature, a handful of files, skip src/features/ entirely) rather than mechanically walking through the feature-folder skeleton just because the skill exists.",
+      "should_trigger": true,
+      "files": []
+    },
+    {
+      "id": 11,
+      "prompt": "review my feature folder, feels like i went overboard\n\nsrc/features/user-settings/\n  api/\n    update-settings.ts\n  components/\n    settings-form.tsx\n  hooks/\n    use-settings-toggle.ts (only used once, inside settings-form.tsx)\n  stores/\n    settings-ui-store.ts (just holds a boolean for whether a section is expanded, only settings-form.tsx reads it)\n  types/\n    settings.ts",
+      "expected_output": "Flags the hooks/ folder as unnecessary since the hook is only used in one place, and flags stores/ as unnecessary since the boolean never leaves settings-form.tsx and should just be local useState. Reports as short, specific one-line findings (location, what to cut, replacement), not a paragraph of general praise or a restatement of every folder's purpose. This is what reference/overengineering-check.md is for.",
+      "should_trigger": true,
+      "files": []
+    }
+  ]
+}

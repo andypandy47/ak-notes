@@ -19,6 +19,12 @@ export default defineConfig(() => ({
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {
     port: 1420,
+    proxy: {
+      "/api": {
+        target: process.env.AKNOTES_API_TARGET || "http://127.0.0.1:8787",
+        changeOrigin: true,
+      },
+    },
     strictPort: true,
     host: host || false,
     hmr: host

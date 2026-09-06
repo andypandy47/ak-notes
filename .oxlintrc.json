@@ -1,0 +1,44 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc"],
+  "jsPlugins": ["oxlint-tailwindcss"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {},
+  "env": {
+    "builtin": true
+  },
+  "ignorePatterns": [
+    ".agents",
+    "app/src-tauri",
+    "node_modules",
+    "dist",
+    "build",
+    "out",
+    "coverage",
+    ".git",
+    "api/worker-configuration.d.ts",
+    ".wrangler"
+  ],
+  "options": {
+    "typeAware": true,
+    "typeCheck": true,
+    "maxWarnings": 10
+  },
+  "overrides": [
+    {
+      "files": [
+        "app/src/features/**",
+        "app/src/app/**",
+        "app/src/lib/**",
+        "app/src/hooks/**",
+        "app/src/utils/**",
+        "app/src/main.tsx"
+      ],
+      "rules": {
+        "curly": ["error", "all"]
+      }
+    }
+  ]
+}

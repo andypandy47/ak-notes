@@ -2,12 +2,22 @@
   "name": "aknotes",
   "version": "0.0.1",
   "description": "Personal note take application",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "",
   "license": "ISC",
+  "author": "",
   "workspaces": [
-    "app"
-  ]
+    "app",
+    "api"
+  ],
+  "scripts": {
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.66.0",
+    "oxlint": "^1.81.0",
+    "oxlint-tailwindcss": "^1.10.2",
+    "oxlint-tsgolint": "^7.0.2001"
+  }
 }
