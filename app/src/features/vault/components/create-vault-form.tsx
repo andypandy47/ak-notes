@@ -5,23 +5,20 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useCreateVaultMutation, type VaultConnection } from "../api/vault";
-import { createVault } from "../crypto";
+import { createVault as createVaultDraft } from "../crypto";
 import { createVaultSchema, type CreateVaultValues } from "../form-schemas";
-import type { VaultSession } from "../types";
+import { useVault } from "../hooks/use-vault";
 import { RecoveryBackup } from "./recovery-backup";
 import { VaultPanel } from "./vault-panel";
 
-export function CreateVaultForm({
-  connection,
-  onUnlocked,
-  disconnect,
-}: {
-  connection: VaultConnection;
-  onUnlocked: (session: VaultSession) => void;
-  disconnect: () => void;
-}) {
-  const mutation = useCreateVaultMutation(connection);
-  const [draft, setDraft] = useState<Awaited<ReturnType<typeof createVault>> | null>(null);
+export function CreateVaultForm({ connection }: { connection: VaultConnection }) {
+  const { disconnect, completeUnlock } = useVault();
+  const createVaultMutation = useCreateVaultMutation(connection);
+
+  const [draft, setDraft] = useState<
+    (Awaited<ReturnType<typeof createVaultDraft>> & { passphrase: string }) | null
+  >(null);
+
   const form = useForm<CreateVaultValues>({
     resolver: zodResolver(createVaultSchema),
     defaultValues: { passphrase: "", confirm: "" },
@@ -30,7 +27,7 @@ export function CreateVaultForm({
   async function onSubmit({ passphrase }: CreateVaultValues) {
     form.clearErrors("root");
     try {
-      setDraft(await createVault(passphrase));
+      setDraft({ ...(await createVaultDraft(passphrase)), passphrase });
       form.reset();
     } catch (error) {
       form.setError("root.server", {
@@ -44,8 +41,8 @@ export function CreateVaultForm({
       <RecoveryBackup
         recoveryKey={draft.recoveryKey}
         onSave={async () => {
-          const vault = await mutation.mutateAsync(draft.document);
-          onUnlocked({ vault, key: draft.key });
+          const vault = await createVaultMutation.mutateAsync(draft.document);
+          await completeUnlock(vault, draft.passphrase);
         }}
       />
     );

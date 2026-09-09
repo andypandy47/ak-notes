@@ -1,6 +1,6 @@
 # AK Notes — project context
 
-Last updated: 6 September 2026.
+Last updated: 9 September 2026.
 
 This document captures the project brief, current implementation, and architecture discussions. Proposed approaches below are not approved implementation decisions.
 
@@ -52,11 +52,11 @@ To avoid lost edits, the proposed protocol includes:
 
 Trash, revision history, Markdown export, database recovery, and independent backups were discussed as recovery measures. Retention periods and export behavior remain undecided. Synchronization is not a substitute for backups.
 
-## Proposed private access
+## Private access
 
-The initial suggestion is one strong, revocable API token per device, provisioned through an administrative command. The backend would store token hashes; devices would protect their credentials with native secure storage. The Windows and Android storage implementations still need evaluation.
+Private access uses one strong, revocable API token per device, provisioned through an administrative command. The backend stores token hashes; each device protects its credential in encrypted local storage unlocked by the vault passphrase.
 
-This avoids routine account login screens while allowing individual devices to be disconnected. Per-device authentication remains a proposal. The local API foundation currently uses one randomly provisioned bearer token, checked against a configured SHA-256 digest.
+This avoids routine account login screens while allowing individual devices to be disconnected. The local API foundation validates provisioned bearer tokens against their stored hashes.
 
 ## Working vocabulary
 
@@ -68,6 +68,12 @@ These terms describe the discussion so far; refine them as the product design is
 
 **Device:** A desktop or phone running an installation of AK Notes.
 
+**Device credential:** The revocable API token authorizing one device to access encrypted remote storage. It does not decrypt page content.
+
 **Vault:** The owner’s encrypted collection of pages, unlocked on an authorized client using its decryption key.
+
+**Lock:** Remove the device credential and vault decryption material from working memory while retaining the encrypted device credential for the next unlock.
+
+**Forget device:** Remove the locally saved device credential. This does not revoke the credential at the backend.
 
 The repository includes `grilling` for structured design interviews and `domain-modeling` for terminology and significant architectural decisions. Earlier technical recommendations should remain proposals until the owner accepts them.

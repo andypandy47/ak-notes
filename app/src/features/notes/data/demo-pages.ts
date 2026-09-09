@@ -1,6 +1,8 @@
-import type { Page } from "../types";
+import type { PartialBlock } from "@blocknote/core";
 
-export const demoPages: Page[] = [
+type DemoPage = { id: string; title: string; updated: string; blocks: PartialBlock[] };
+
+export const demoPages: DemoPage[] = [
   {
     id: "welcome",
     title: "A little room for your thoughts",

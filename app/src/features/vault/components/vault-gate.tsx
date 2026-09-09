@@ -1,53 +1,56 @@
 import { Button } from "@/components/ui/button";
 import { FieldError, FieldGroup } from "@/components/ui/field";
-import { useQueryClient } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
-import { useVaultQuery, type VaultConnection } from "../api/vault";
+import { useMutationState } from "@tanstack/react-query";
+import { type ReactNode } from "react";
+import { QUERY_KEYS, useListVaultsQuery, type VaultConnection } from "../api/vault";
+import { useVault } from "../hooks/use-vault";
 import type { VaultSession } from "../types";
 import { ConnectVaultForm } from "./connect-vault-form";
 import { CreateVaultForm } from "./create-vault-form";
 import { RecoverVaultForm } from "./recover-vault-form";
+import { UnlockDeviceForm } from "./unlock-device-form";
 import { UnlockVaultForm } from "./unlock-vault-form";
 import { VaultPanel } from "./vault-panel";
 
-type Content = (session: VaultSession, lock: () => void) => ReactNode;
+type Content = (session: VaultSession, connection: VaultConnection, lock: () => void) => ReactNode;
 
 export function VaultGate({ children }: { children: Content }) {
-  const [connection, setConnection] = useState<VaultConnection | null>(null);
-  const queryClient = useQueryClient();
+  const { isManualTokenEntryRequested, connection, session, hasDeviceCredential, connect, lock } =
+    useVault();
 
-  function disconnect() {
-    setConnection(null);
-    queryClient.clear();
-  }
-
-  if (connection) {
+  if (hasDeviceCredential.isLoading) {
     return (
-      <ConnectedVault key={connection.sessionId} connection={connection} disconnect={disconnect}>
-        {children}
-      </ConnectedVault>
+      <VaultPanel
+        title="Opening AK Notes"
+        description="Checking this device for a saved credential."
+        isLoading={true}
+      >
+        <></>
+      </VaultPanel>
     );
   }
 
-  return <ConnectVaultForm onConnect={setConnection} />;
+  if (session && connection) {
+    return children(session, connection, lock);
+  }
+
+  if (connection) {
+    return <ConnectedVault />;
+  }
+
+  if (hasDeviceCredential.data && !isManualTokenEntryRequested) {
+    return <UnlockDeviceForm />;
+  }
+
+  return <ConnectVaultForm onConnect={connect} />;
 }
 
-function ConnectedVault({
-  connection,
-  disconnect,
-  children,
-}: {
-  connection: VaultConnection;
-  disconnect: () => void;
-  children: Content;
-}) {
-  const vaultQuery = useVaultQuery(connection);
-  const [session, setSession] = useState<VaultSession | null>(null);
-  if (session) {
-    return children(session, disconnect);
-  }
-  if (vaultQuery.data === undefined) {
-    if (vaultQuery.isPending) {
+function ConnectedVault() {
+  const { connection, disconnect } = useVault();
+  const listVaults = useListVaultsQuery(connection);
+
+  if (listVaults.data === undefined) {
+    if (listVaults.isPending) {
       return (
         <VaultPanel
           title="Opening your vault"
@@ -58,6 +61,7 @@ function ConnectedVault({
         </VaultPanel>
       );
     }
+
     return (
       <VaultPanel
         title="Could not open the vault"
@@ -69,45 +73,37 @@ function ConnectedVault({
         }
       >
         <FieldGroup>
-          <FieldError>{vaultQuery.error?.message}</FieldError>
-          <Button onClick={() => void vaultQuery.refetch()}>Retry</Button>
+          <FieldError>{listVaults.error?.message}</FieldError>
+          <Button onClick={() => void listVaults.refetch()}>Retry</Button>
         </FieldGroup>
       </VaultPanel>
     );
   }
-  return (
-    <VaultAccess
-      initiallyCreating={vaultQuery.data === null}
-      connection={connection}
-      disconnect={disconnect}
-      onUnlocked={setSession}
-    />
-  );
+
+  return <VaultAccess hasExistingVault={Boolean(listVaults.data?.length)} />;
 }
 
-function VaultAccess({
-  initiallyCreating,
-  connection,
-  disconnect,
-  onUnlocked,
-}: {
-  initiallyCreating: boolean;
-  connection: VaultConnection;
-  disconnect: () => void;
-  onUnlocked: (session: VaultSession) => void;
-}) {
-  // Keep creation mounted while its mutation reconciles the server record, preserving the recovery draft.
-  const [screen, setScreen] = useState<"create" | "unlock" | "recover">(
-    initiallyCreating ? "create" : "unlock",
-  );
-  const props = { connection, disconnect, onUnlocked };
-  if (screen === "create") {
+function VaultAccess({ hasExistingVault }: { hasExistingVault: boolean }) {
+  const { connection, accessMode } = useVault();
+  const createVaultMutations = useMutationState({
+    filters: {
+      mutationKey: [QUERY_KEYS.vault, connection?.sessionId ?? "disconnected", "create"],
+    },
+  });
+
+  if (!connection) {
+    throw new Error("No connection available.");
+  }
+
+  const isCreatingVault = createVaultMutations.length > 0;
+  const props = { connection };
+  if (!hasExistingVault || isCreatingVault) {
     return <CreateVaultForm {...props} />;
   }
 
-  if (screen === "recover") {
-    return <RecoverVaultForm {...props} onUnlock={() => setScreen("unlock")} />;
+  if (accessMode === "recover") {
+    return <RecoverVaultForm {...props} />;
   }
 
-  return <UnlockVaultForm {...props} onRecover={() => setScreen("recover")} />;
+  return <UnlockVaultForm {...props} />;
 }

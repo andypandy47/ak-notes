@@ -18,7 +18,7 @@ export function Notebook({ status }: { status?: ReactNode }) {
           </div>
           <footer className="flex justify-between gap-2 border-t border-border px-4 py-3 text-xs text-muted-foreground md:px-7">
             <span>Room to think.</span>
-            <span>Session only · not saved to disk</span>
+            <span>End-to-end encrypted · automatically saved</span>
           </footer>
         </main>
       </SidebarProvider>

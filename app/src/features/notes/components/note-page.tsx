@@ -13,15 +13,33 @@ import { NoteEditor } from "./note-editor";
 import { useNotebook } from "../hooks/use-notebook";
 
 export function NotePage() {
-  const { activePage: page, updatePage, addPage } = useNotebook();
+  const { activePage: page, updatePage, addPage, isLoading, loadError } = useNotebook();
+  if (isLoading) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>Opening your pages</EmptyTitle>
+          <EmptyDescription>Fetching and decrypting your notebook on this device.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  }
+  if (loadError) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>Could not open your pages</EmptyTitle>
+          <EmptyDescription>{loadError.message}</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  }
   if (!page) {
     return (
       <Empty>
         <EmptyHeader>
           <EmptyTitle>A little room for your thoughts</EmptyTitle>
-          <EmptyDescription>
-            Create your first page to try the editor. These preview edits are not saved yet.
-          </EmptyDescription>
+          <EmptyDescription>Create your first encrypted page and start writing.</EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
           <Button onClick={addPage}>Create a page</Button>
@@ -38,27 +56,27 @@ export function NotePage() {
         <span>A PAGE OF YOUR OWN</span>
       </div>
       <Textarea
-        key={page.id}
+        key={page.document.id}
         className="min-h-12 resize-none border-0 px-0 py-0 font-serif text-3xl md:text-4xl lg:text-5xl leading-tight font-normal tracking-tight"
         aria-label="Page title"
         placeholder="Untitled"
         rows={2}
-        value={page.title}
-        onChange={(event) => updatePage(page.id, { title: event.target.value })}
+        value={page.document.title}
+        onChange={(event) => updatePage(page.document.id, { title: event.target.value })}
       />
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <Clock3 className="size-3" aria-hidden="true" />
         <span>
-          Edited {formatDate(page.updated)} at {formatTime(page.updated)}
+          Edited {formatDate(page.updatedAt)} at {formatTime(page.updatedAt)}
         </span>
         <span>·</span>
-        <span>{page.blocks.length} blocks</span>
+        <span>{page.document.blocks.length} blocks</span>
       </div>
       <div className="-mx-4">
         <NoteEditor
-          key={page.id}
-          initialContent={page.blocks}
-          onChange={(blocks) => updatePage(page.id, { blocks })}
+          key={page.document.id}
+          initialContent={page.document.blocks}
+          onChange={(blocks) => updatePage(page.document.id, { blocks })}
         />
       </div>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">

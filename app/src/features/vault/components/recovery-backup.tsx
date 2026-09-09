@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import z from "zod";
 import { VaultPanel } from "./vault-panel";
@@ -14,20 +14,14 @@ export function RecoveryBackup({
   recoveryKey: string;
   onSave: () => Promise<void>;
 }) {
-  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
+  const copyRecoveryKey = useMutation({
+    mutationFn: () => navigator.clipboard.writeText(recoveryKey),
+    retry: false,
+  });
   const form = useForm<{}>({
     resolver: zodResolver(z.object({})),
     defaultValues: {},
   });
-
-  async function copyRecoveryKey() {
-    try {
-      await navigator.clipboard.writeText(recoveryKey);
-      setCopyStatus("copied");
-    } catch {
-      setCopyStatus("error");
-    }
-  }
 
   async function onSubmit() {
     form.clearErrors("root");
@@ -60,12 +54,17 @@ export function RecoveryBackup({
           <Field>
             <FieldLabel htmlFor="backup">Recovery key</FieldLabel>
             <Input id="backup" value={recoveryKey} readOnly autoComplete="off" spellCheck={false} />
-            <Button type="button" variant="outline" onClick={() => void copyRecoveryKey()}>
-              {copyStatus === "copied" ? "Copied" : "Copy recovery key"}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => copyRecoveryKey.mutate()}
+              disabled={copyRecoveryKey.isPending}
+            >
+              {copyRecoveryKey.isSuccess ? "Copied" : "Copy recovery key"}
             </Button>
             <FieldDescription role="status" aria-live="polite">
-              {copyStatus === "copied" && "Recovery key copied to clipboard."}
-              {copyStatus === "error" &&
+              {copyRecoveryKey.isSuccess && "Recovery key copied to clipboard."}
+              {copyRecoveryKey.isError &&
                 "Could not copy automatically. Select the key and copy it manually."}
             </FieldDescription>
             <FieldDescription>

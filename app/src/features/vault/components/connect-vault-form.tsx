@@ -32,11 +32,11 @@ export function ConnectVaultForm({
   return (
     <VaultPanel
       title="Your private notebook"
-      description="Connect to your local API to create or unlock your vault."
+      description="Enter your API token to create or unlock your own vault."
       footer={
         <p className="text-sm text-muted-foreground">
-          Your API token permits access to storage. Your passphrase unlocks it. Both stay in memory
-          for this session.
+          Your API token permits access to storage. After you unlock the vault, it is encrypted on
+          this device so future visits need only your passphrase.
         </p>
       }
     >
@@ -51,7 +51,7 @@ export function ConnectVaultForm({
             control={form.control}
             render={({ field, fieldState }) => (
               <Field data-invalid={fieldState.invalid}>
-                <FieldLabel htmlFor="token">Local API token</FieldLabel>
+                <FieldLabel htmlFor="token">API token</FieldLabel>
                 <Input
                   {...field}
                   id="token"
@@ -65,7 +65,7 @@ export function ConnectVaultForm({
                   }
                 />
                 <FieldDescription id="token-description">
-                  Use the token from api/.dev.token, created by the local setup command.
+                  Use the token issued to you. It gives access only to your own vault.
                 </FieldDescription>
                 {fieldState.error && <FieldError id="token-error" errors={[fieldState.error]} />}
               </Field>

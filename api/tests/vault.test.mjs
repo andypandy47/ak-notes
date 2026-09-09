@@ -37,11 +37,10 @@ await test("vault keys survive storage and restart; recovery preserves the encry
     compatibilityDate: "2026-09-03",
     d1Databases: ["DB"],
     resourcePersistencePath: directory,
-    bindings: { API_TOKEN_SHA256: createHash("sha256").update(token).digest("hex") },
   });
   let runtime = new Miniflare(options);
   const request = (suffix = "", init = {}) =>
-    runtime.dispatchFetch("http://localhost/api/v1/vault" + suffix, {
+    runtime.dispatchFetch("http://localhost/api/v1/vaults" + suffix, {
       ...init,
       headers: {
         Authorization: "Bearer " + token,
@@ -51,8 +50,22 @@ await test("vault keys survive storage and restart; recovery preserves the encry
     });
   try {
     const db = await runtime.getD1Database("DB");
-    await db.exec((await readFile("migrations/0002_vault.sql", "utf8")).replaceAll("\n", " "));
-    assert.equal((await request()).status, 404);
+    await db.exec(
+      (await readFile("migrations/0000_initial.sql", "utf8"))
+        .replaceAll("--> statement-breakpoint", "")
+        .replaceAll("\n", " "),
+    );
+    await db
+      .prepare("INSERT INTO users (id, name, created_at) VALUES (?, ?, ?)")
+      .bind("personal", "Personal", Date.now())
+      .run();
+    await db
+      .prepare(
+        "INSERT INTO api_tokens (id, user_id, label, token_hash, created_at) VALUES (?, 'personal', 'test', ?, ?)",
+      )
+      .bind(crypto.randomUUID(), createHash("sha256").update(token).digest("hex"), Date.now())
+      .run();
+    assert.deepEqual((await (await request()).json()).vaults, []);
     assert.equal((await request("", { headers: { Authorization: "" } })).status, 401);
     const created = await client.createVault(password);
     assert.equal(created.key.extractable, false);
@@ -64,15 +77,15 @@ await test("vault keys survive storage and restart; recovery preserves the encry
       results.map((r) => r.status).sort((a, b) => a - b),
       [201, 409],
     );
-    const stored = (await (await request()).json()).vault;
+    const stored = (await (await request("/" + created.document.id)).json()).vault;
     assert.deepEqual(stored.document, created.document);
-    const serialized = JSON.stringify(await db.prepare("SELECT * FROM vault").all());
+    const serialized = JSON.stringify(await db.prepare("SELECT * FROM vaults").all());
     assert.ok(!serialized.includes(password));
     assert.ok(!serialized.includes(created.recoveryKey));
     assert.ok(!serialized.includes("Private page content"));
     await runtime.dispose();
     runtime = new Miniflare(options);
-    const restored = (await (await request()).json()).vault;
+    const restored = (await (await request("/" + created.document.id)).json()).vault;
     const key = await client.unlockVault(restored.document, password);
     assert.equal(key.extractable, false);
     assert.deepEqual(
@@ -86,7 +99,7 @@ await test("vault keys survive storage and restart; recovery preserves the encry
       nextPassword,
     );
     const reset = () =>
-      request("/passphrase", {
+      request("/" + created.document.id + "/passphrase", {
         method: "PUT",
         body: JSON.stringify({
           expectedRevision: restored.revision,
@@ -95,7 +108,7 @@ await test("vault keys survive storage and restart; recovery preserves the encry
       });
     assert.equal((await reset()).status, 200);
     assert.equal((await reset()).status, 409);
-    const updated = (await (await request()).json()).vault;
+    const updated = (await (await request("/" + created.document.id)).json()).vault;
     assert.equal(updated.revision, 2);
     assert.equal(updated.document.keyId, created.document.keyId);
     assert.deepEqual(updated.document.recovery, created.document.recovery);
@@ -123,7 +136,7 @@ await test("vault keys survive storage and restart; recovery preserves the encry
     );
     assert.equal(
       (
-        await request("/passphrase", {
+        await request("/" + created.document.id + "/passphrase", {
           method: "PUT",
           body: JSON.stringify({
             expectedRevision: 2,
@@ -135,12 +148,22 @@ await test("vault keys survive storage and restart; recovery preserves the encry
     );
     const spec = await (await runtime.dispatchFetch("http://localhost/openapi.json")).json();
     for (const [path, method] of [
-      ["/api/v1/vault", "get"],
-      ["/api/v1/vault", "post"],
-      ["/api/v1/vault/passphrase", "put"],
+      ["/api/v1/vaults", "get"],
+      ["/api/v1/vaults", "post"],
+      ["/api/v1/vaults/{vaultId}", "get"],
+      ["/api/v1/vaults/{vaultId}/passphrase", "put"],
     ]) {
       assert.deepEqual(spec.paths[path][method].security, [{ bearerAuth: [] }]);
     }
+    assert.ok(!spec.paths["/api/v1/vault"]);
+    assert.ok(!spec.paths["/api/v1/vault/passphrase"]);
+    const parameters = spec.paths["/api/v1/vaults/{vaultId}/passphrase"].put.parameters;
+    assert.ok(
+      parameters.some(
+        (parameter) =>
+          parameter.name === "vaultId" && parameter.in === "path" && parameter.required,
+      ),
+    );
   } finally {
     await runtime.dispose();
     // Only remove the unique directory this test created directly beneath the OS temp directory.

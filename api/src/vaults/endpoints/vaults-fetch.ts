@@ -4,6 +4,7 @@ import {
   type AppContext,
   ErrorBody,
   VaultRecord,
+  VaultParams,
   commonResponses,
   json,
   security,
@@ -12,8 +13,9 @@ import { fetchVault } from "../vaults-service";
 export class VaultFetch extends OpenAPIRoute {
   schema = {
     tags: ["Vault"],
-    summary: "Fetch encrypted vault key wrappers",
+    summary: "Fetch the authenticated owner's encrypted vault key wrappers",
     security,
+    request: { params: VaultParams },
     responses: {
       ...commonResponses,
       "200": {
@@ -24,7 +26,8 @@ export class VaultFetch extends OpenAPIRoute {
     },
   };
   async handle(c: AppContext) {
-    const vault = await fetchVault(c.env.DB);
+    const { params } = await this.getValidatedData<typeof this.schema>();
+    const vault = await fetchVault(c.env.DB, c.get("ownerId"), params.vaultId);
     return vault
       ? c.json({ success: true, vault })
       : c.json({ success: false, error: "Vault not found" }, 404);

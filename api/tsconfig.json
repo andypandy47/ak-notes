@@ -15,9 +15,10 @@
     "moduleResolution": "Bundler",
     "module": "es2022",
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "lib": ["es2024"],
     "types": ["./worker-configuration.d.ts", "@types/node", "node"]
   },
   "exclude": ["node_modules", "dist", "tests"],
-  "include": ["src", "worker-configuration.d.ts"]
+  "include": ["src", "scripts/*.mts", "worker-configuration.d.ts"]
 }

@@ -13,7 +13,7 @@ import { createVault } from "../vaults-service";
 export class VaultCreate extends OpenAPIRoute {
   schema = {
     tags: ["Vault"],
-    summary: "Create the single vault once using client-encrypted key wrappers",
+    summary: "Create the authenticated owner's vault once using client-encrypted key wrappers",
     security,
     request: { body: json(VaultDocument) },
     responses: {
@@ -30,7 +30,7 @@ export class VaultCreate extends OpenAPIRoute {
   };
   async handle(c: AppContext) {
     const { body } = await this.getValidatedData<typeof this.schema>();
-    const vault = await createVault(c.env.DB, body);
+    const vault = await createVault(c.env.DB, c.get("ownerId"), body);
     return vault
       ? c.json({ success: true, vault }, 201)
       : c.json({ success: false, error: "Vault already exists" }, 409);

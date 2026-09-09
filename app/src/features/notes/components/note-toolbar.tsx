@@ -10,7 +10,7 @@ export function NoteToolbar() {
         <span className="hidden whitespace-nowrap sm:inline">My notebook</span>
         <span className="hidden text-border sm:inline">/</span>
         <span className="truncate">
-          {activePage ? activePage.title || "Untitled" : "Your pages"}
+          {activePage ? activePage.document.title || "Untitled" : "Your pages"}
         </span>
       </div>
       <span className="hidden text-xs tracking-widest whitespace-nowrap text-muted-foreground lg:inline">

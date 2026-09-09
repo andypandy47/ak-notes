@@ -1,45 +1,104 @@
 import { Envelope, type SavePage } from "../types";
+import { and, eq, gt, inArray, sql } from "drizzle-orm";
+import { createDb } from "../db/client";
+import { pages, vaults } from "../db/schema";
 import type { z } from "zod";
 
-type PageRow = { id: string; revision: number; updatedAt: string; envelope: string };
-const columns = "id, revision, updated_at AS updatedAt, envelope";
-const decode = (row: PageRow) => ({ ...row, envelope: Envelope.parse(JSON.parse(row.envelope)) });
+type PageRow = {
+  id: string;
+  revision: number;
+  updatedAt: string;
+  envelope: z.infer<typeof Envelope>;
+};
+const decode = (row: PageRow) => ({ ...row, envelope: Envelope.parse(row.envelope) });
 
-export async function fetchPage(db: D1Database, id: string) {
-  const row = await db
-    .prepare(`SELECT ${columns} FROM pages WHERE id = ?1`)
-    .bind(id)
-    .first<PageRow>();
+export async function fetchPage(db: D1Database, ownerId: string, id: string) {
+  const database = createDb(db);
+  const ownedVaults = database
+    .select({ id: vaults.id })
+    .from(vaults)
+    .where(eq(vaults.ownerId, ownerId));
+  const row = await database
+    .select({
+      id: pages.id,
+      revision: pages.revision,
+      updatedAt: pages.updatedAt,
+      envelope: pages.envelope,
+    })
+    .from(pages)
+    .where(and(eq(pages.id, id), inArray(pages.vaultId, ownedVaults)))
+    .get();
   return row ? decode(row) : null;
 }
 
-export async function listPages(db: D1Database, after: string, limit: number) {
-  const { results } = await db
-    .prepare(
-      "SELECT id, revision, updated_at AS updatedAt FROM pages WHERE id > ?1 ORDER BY id LIMIT ?2",
-    )
-    .bind(after, limit + 1)
-    .all<Omit<PageRow, "envelope">>();
-  const pages = results.slice(0, limit);
-  return { pages, nextCursor: results.length > limit ? pages.at(-1)!.id : null };
+export async function listPages(db: D1Database, ownerId: string, after: string, limit: number) {
+  const database = createDb(db);
+  const ownedVaults = database
+    .select({ id: vaults.id })
+    .from(vaults)
+    .where(eq(vaults.ownerId, ownerId));
+  const rows = await database
+    .select({ id: pages.id, revision: pages.revision, updatedAt: pages.updatedAt })
+    .from(pages)
+    .where(and(inArray(pages.vaultId, ownedVaults), gt(pages.id, after)))
+    .orderBy(pages.id)
+    .limit(limit + 1);
+  const pageItems = rows.slice(0, limit);
+  return { pages: pageItems, nextCursor: rows.length > limit ? pageItems.at(-1)!.id : null };
 }
 
-export async function savePage(db: D1Database, id: string, data: z.infer<typeof SavePage>) {
+export async function savePage(
+  db: D1Database,
+  ownerId: string,
+  id: string,
+  data: z.infer<typeof SavePage>,
+) {
   const updatedAt = new Date().toISOString();
-  const envelope = JSON.stringify(data.envelope);
+  const database = createDb(db);
+  const ownedVault = await database
+    .select({ id: vaults.id })
+    .from(vaults)
+    .where(
+      and(
+        eq(vaults.ownerId, ownerId),
+        sql`json_extract(${vaults.document}, '$.keyId') = ${data.envelope.keyId}`,
+      ),
+    )
+    .get();
+  if (!ownedVault) return null;
+
   // The revision condition is part of the write itself, so concurrent requests cannot both win.
-  const statement =
+  const ownedVaults = database
+    .select({ id: vaults.id })
+    .from(vaults)
+    .where(
+      and(
+        eq(vaults.ownerId, ownerId),
+        sql`json_extract(${vaults.document}, '$.keyId') = ${data.envelope.keyId}`,
+      ),
+    );
+  const rows =
     data.expectedRevision === 0
-      ? db
-          .prepare(
-            `INSERT INTO pages (id, revision, updated_at, envelope) VALUES (?1, 1, ?2, ?3) ON CONFLICT(id) DO NOTHING RETURNING ${columns}`,
+      ? await database
+          .insert(pages)
+          .values({ id, vaultId: ownedVault.id, revision: 1, updatedAt, envelope: data.envelope })
+          .onConflictDoNothing()
+          .returning()
+      : await database
+          .update(pages)
+          .set({
+            revision: sql`${pages.revision} + 1`,
+            updatedAt,
+            envelope: data.envelope,
+          })
+          .where(
+            and(
+              eq(pages.id, id),
+              eq(pages.revision, data.expectedRevision),
+              inArray(pages.vaultId, ownedVaults),
+            ),
           )
-          .bind(id, updatedAt, envelope)
-      : db
-          .prepare(
-            `UPDATE pages SET revision = revision + 1, updated_at = ?2, envelope = ?3 WHERE id = ?1 AND revision = ?4 RETURNING ${columns}`,
-          )
-          .bind(id, updatedAt, envelope, data.expectedRevision);
-  const row = await statement.first<PageRow>();
+          .returning();
+  const row = rows[0];
   return row ? decode(row) : null;
 }

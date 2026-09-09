@@ -13,15 +13,42 @@ const ResponseRecord = z.object({ success: z.literal(true), vault: VaultRecord }
 
 export type VaultConnection = { token: string; sessionId: string };
 
-export const QUERY_KEYS = { vault: "vault" } as const;
+export const QUERY_KEYS = { vault: "vaults" } as const;
 const vaultKey = (connection: VaultConnection) => [QUERY_KEYS.vault, connection.sessionId] as const;
 
-const vaultQueryOptions = (connection: VaultConnection) =>
+export const listVaultsQueryOptions = (connection: VaultConnection | null) =>
   queryOptions({
-    // Cache keys identify a session without exposing its bearer token.
-    queryKey: vaultKey(connection),
+    queryKey: connection ? vaultKey(connection) : [QUERY_KEYS.vault, "disconnected"],
+    queryFn: async ({ signal }) => {
+      const response = await apiRequest(connection?.token ?? "", "/vaults", { signal });
+      checkApiStatus(response);
+      return z
+        .object({ success: z.literal(true), vaults: VaultRecord.array() })
+        .parse(await response.json()).vaults;
+    },
+    staleTime: Infinity,
+    retry: false,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+    enabled: Boolean(connection),
+  });
+
+export const useListVaultsQuery = (connection: VaultConnection | null) =>
+  useQuery(listVaultsQueryOptions(connection));
+
+export const getVaultQueryOptions = (connection: VaultConnection, vaultId: string | undefined) =>
+  queryOptions({
+    queryKey: [...vaultKey(connection), vaultId],
+    enabled: Boolean(vaultId),
     queryFn: async ({ signal }): Promise<VaultRecord | null> => {
-      const response = await apiRequest(connection.token, "/vault", { signal });
+      if (!vaultId) {
+        throw new Error("A vault ID is required.");
+      }
+      const response = await apiRequest(
+        connection.token,
+        `/vaults/${encodeURIComponent(vaultId)}`,
+        { signal },
+      );
       if (response.status === 404) {
         return null;
       }
@@ -34,8 +61,8 @@ const vaultQueryOptions = (connection: VaultConnection) =>
     refetchOnWindowFocus: false,
   });
 
-export const useVaultQuery = (connection: VaultConnection) =>
-  useQuery(vaultQueryOptions(connection));
+export const useGetVaultQuery = (connection: VaultConnection, vaultId: string | undefined) =>
+  useQuery(getVaultQueryOptions(connection, vaultId));
 
 async function cacheVault(
   queryClient: QueryClient,
@@ -44,9 +71,17 @@ async function cacheVault(
 ) {
   // Stop an older read overwriting the mutation result. Disconnect removes this query;
   // a late response must not recreate the disconnected session's cache.
-  await queryClient.cancelQueries({ queryKey: vaultKey(connection), exact: true });
+  await queryClient.cancelQueries({ queryKey: vaultKey(connection) });
   if (queryClient.getQueryState(vaultKey(connection))) {
-    queryClient.setQueryData(vaultKey(connection), vault);
+    queryClient.setQueryData<VaultRecord[]>(vaultKey(connection), (existing) =>
+      existing?.some((item) => item.document.id === vault.document.id)
+        ? existing.map((item) => (item.document.id === vault.document.id ? vault : item))
+        : [...(existing ?? []), vault],
+    );
+  }
+  const detailKey = getVaultQueryOptions(connection, vault.document.id).queryKey;
+  if (queryClient.getQueryState(detailKey)) {
+    queryClient.setQueryData(detailKey, vault);
   }
 }
 
@@ -58,7 +93,7 @@ export function useCreateVaultMutation(connection: VaultConnection) {
     gcTime: 0,
     mutationFn: async (document: VaultDocument) => {
       try {
-        const response = await apiRequest(connection.token, "/vault", {
+        const response = await apiRequest(connection.token, "/vaults", {
           method: "POST",
           body: JSON.stringify(document),
         });
@@ -71,7 +106,7 @@ export function useCreateVaultMutation(connection: VaultConnection) {
         // The create may have succeeded before its response was lost. Reconcile through
         // a fresh TanStack query and accept only an exact match to this encrypted draft.
         const existing = await queryClient
-          .fetchQuery({ ...vaultQueryOptions(connection), staleTime: 0 })
+          .fetchQuery({ ...getVaultQueryOptions(connection, document.id), staleTime: 0 })
           .catch(() => null);
         if (existing && JSON.stringify(existing.document) === JSON.stringify(document)) {
           return existing;
@@ -90,11 +125,22 @@ export function useUpdateVaultPassphraseMutation(connection: VaultConnection) {
     retry: false,
     gcTime: 0,
     // Only the encrypted wrapper enters mutation state, never an unlocking secret or key.
-    mutationFn: async (data: { expectedRevision: number; passphrase: PassphraseKey }) => {
-      const response = await apiRequest(connection.token, "/vault/passphrase", {
-        method: "PUT",
-        body: JSON.stringify(data),
-      });
+    mutationFn: async ({
+      vaultId,
+      ...data
+    }: {
+      vaultId: string;
+      expectedRevision: number;
+      passphrase: PassphraseKey;
+    }) => {
+      const response = await apiRequest(
+        connection.token,
+        `/vaults/${encodeURIComponent(vaultId)}/passphrase`,
+        {
+          method: "PUT",
+          body: JSON.stringify(data),
+        },
+      );
       checkApiStatus(response);
       return ResponseRecord.parse(await response.json()).vault;
     },

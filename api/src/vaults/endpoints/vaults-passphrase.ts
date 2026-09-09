@@ -5,6 +5,7 @@ import {
   ErrorBody,
   PassphraseKey,
   VaultRecord,
+  VaultParams,
   commonResponses,
   json,
   security,
@@ -16,6 +17,7 @@ export class VaultPassphrase extends OpenAPIRoute {
     summary: "Replace the passphrase wrapper after client-side recovery",
     security,
     request: {
+      params: VaultParams,
       body: json(
         z.strictObject({
           expectedRevision: z
@@ -40,8 +42,14 @@ export class VaultPassphrase extends OpenAPIRoute {
     },
   };
   async handle(c: AppContext) {
-    const { body } = await this.getValidatedData<typeof this.schema>();
-    const vault = await updatePassphrase(c.env.DB, body.expectedRevision, body.passphrase);
+    const { params, body } = await this.getValidatedData<typeof this.schema>();
+    const vault = await updatePassphrase(
+      c.env.DB,
+      c.get("ownerId"),
+      params.vaultId,
+      body.expectedRevision,
+      body.passphrase,
+    );
     return vault
       ? c.json({ success: true, vault })
       : c.json({ success: false, error: "Vault revision conflict" }, 409);

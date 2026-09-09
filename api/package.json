@@ -7,18 +7,23 @@
     "dev": "wrangler dev",
     "start": "wrangler dev",
     "cf-typegen": "wrangler types",
+    "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.test.mjs",
-    "setup:local": "node scripts/setup-local.mjs"
+    "setup:local": "node scripts/setup-local.mts",
+    "tokens": "node scripts/tokens.mts"
   },
   "dependencies": {
     "chanfana": "^3.3.0",
+    "drizzle-orm": "^0.45.2",
     "hono": "^4.12.12",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^25.9.5",
+    "drizzle-kit": "^0.31.10",
     "esbuild": "^0.28.1",
     "miniflare": "^5.20260903.0-alpha",
     "typescript": "~6.0.3",

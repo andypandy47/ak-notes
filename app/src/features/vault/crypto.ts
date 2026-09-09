@@ -13,11 +13,6 @@ function decode(value: string) {
 const importKey = (raw: Uint8Array<ArrayBuffer>) =>
   crypto.subtle.importKey("raw", raw, "AES-GCM", false, ["encrypt", "decrypt"]);
 
-function validatePassphrase(passphrase: string) {
-  if (passphrase.length < 15 || passphrase.length > 1024) {
-    throw new Error("Use a passphrase between 15 and 1,024 characters.");
-  }
-}
 function associatedData(
   document: Pick<VaultDocument, "id" | "keyId">,
   purpose: "passphrase" | "recovery",
@@ -93,7 +88,6 @@ async function wrapWithPassphrase(
   identity: Pick<VaultDocument, "id" | "keyId">,
   passphrase: string,
 ): Promise<PassphraseKey> {
-  validatePassphrase(passphrase);
   const settings = { kdf: "PBKDF2-SHA-256", iterations: 600000, salt: base64(random(16)) } as const;
   const key = await derivePassphraseKey(passphrase, settings);
   return {
@@ -103,7 +97,6 @@ async function wrapWithPassphrase(
 }
 
 export async function createVault(passphrase: string) {
-  validatePassphrase(passphrase);
   const identity = { id: crypto.randomUUID(), keyId: crypto.randomUUID() };
   const raw = random(32);
   const recovery = random(32);
@@ -159,7 +152,6 @@ export async function recoverVault(
   newPassphrase: string,
 ) {
   const document = VaultDocument.parse(input);
-  validatePassphrase(newPassphrase);
   let raw: Uint8Array<ArrayBuffer>;
   try {
     const value = recoveryKey.trim();

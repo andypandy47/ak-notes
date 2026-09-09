@@ -4,8 +4,8 @@ import type { Page } from "../types";
 import "@blocknote/shadcn/style.css";
 
 type NoteEditorProps = {
-  initialContent: Page["blocks"];
-  onChange: (blocks: Page["blocks"]) => void;
+  initialContent: Page["document"]["blocks"];
+  onChange: (blocks: Page["document"]["blocks"]) => void;
 };
 
 export function NoteEditor({ initialContent, onChange }: NoteEditorProps) {

@@ -1,8 +1,10 @@
 import type { Context } from "hono";
 import { z } from "zod";
 
-export type AppBindings = Env & { API_TOKEN_SHA256?: string };
-export type AppContext = Context<{ Bindings: AppBindings }>;
+export type AppBindings = Pick<Env, "DB">;
+export type AppEnvironment = { Bindings: AppBindings; Variables: { ownerId: string } };
+export type AppContext = Context<AppEnvironment>;
+export const VaultParams = z.object({ vaultId: z.uuid() });
 export const PageParams = z.object({ pageId: z.uuid() });
 export const Envelope = z.strictObject({
   version: z.literal(1),
@@ -90,7 +92,7 @@ export const commonResponses = {
     ),
   },
   "401": { description: "Missing or invalid bearer token", ...json(ErrorBody) },
-  "503": { description: "API authentication has not been configured", ...json(ErrorBody) },
+  "503": { description: "Authentication storage unavailable", ...json(ErrorBody) },
   "500": { description: "Unexpected server error", ...json(ErrorBody) },
 };
 export const security = [{ bearerAuth: [] }];

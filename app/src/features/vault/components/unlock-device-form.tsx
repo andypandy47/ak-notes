@@ -3,32 +3,37 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field
 import { Input } from "@/components/ui/input";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
-import { useListVaultsQuery, type VaultConnection } from "../api/vault";
 import { unlockVaultSchema, type UnlockVaultValues } from "../form-schemas";
 import { useVault } from "../hooks/use-vault";
 import { VaultPanel } from "./vault-panel";
 
-export function UnlockVaultForm({ connection }: { connection: VaultConnection }) {
+export function UnlockDeviceForm() {
+  const { openSavedVault, forgetDevice, requestManualTokenEntry } = useVault();
+
   const form = useForm<UnlockVaultValues>({
     resolver: zodResolver(unlockVaultSchema),
     defaultValues: { passphrase: "" },
   });
-  const { completeUnlock, disconnect, startRecovery } = useVault();
-  const vaults = useListVaultsQuery(connection);
 
   async function onSubmit({ passphrase }: UnlockVaultValues) {
     form.clearErrors("root");
     try {
-      const vault = vaults.data?.[0];
-      if (!vault) {
-        throw new Error("The vault could not be found. Reconnect to check its state.");
-      }
-
-      await completeUnlock(vault, passphrase);
+      await openSavedVault(passphrase);
       form.reset();
     } catch (error) {
       form.setError("root.server", {
-        message: error instanceof Error ? error.message : "Could not complete the vault operation.",
+        message: error instanceof Error ? error.message : "Could not unlock this device.",
+      });
+    }
+  }
+
+  async function forget() {
+    form.clearErrors("root");
+    try {
+      await forgetDevice();
+    } catch {
+      form.setError("root.server", {
+        message: "Could not forget the saved device credential. Close the app and try again.",
       });
     }
   }
@@ -36,14 +41,22 @@ export function UnlockVaultForm({ connection }: { connection: VaultConnection })
   return (
     <VaultPanel
       title="Welcome back"
-      description="Enter your passphrase to unlock your vault on this device."
+      description="Enter your passphrase to unlock this device and open your vault."
       footer={
         <div className="flex w-full flex-wrap justify-between gap-2">
-          <Button variant="ghost" disabled={form.formState.isSubmitting} onClick={disconnect}>
-            Disconnect
+          <Button
+            variant="ghost"
+            disabled={form.formState.isSubmitting}
+            onClick={requestManualTokenEntry}
+          >
+            Use API token
           </Button>
-          <Button variant="ghost" disabled={form.formState.isSubmitting} onClick={startRecovery}>
-            Use recovery key
+          <Button
+            variant="ghost"
+            disabled={form.formState.isSubmitting}
+            onClick={() => void forget()}
+          >
+            Forget this device
           </Button>
         </div>
       }
@@ -59,20 +72,19 @@ export function UnlockVaultForm({ connection }: { connection: VaultConnection })
             control={form.control}
             render={({ field, fieldState }) => (
               <Field data-invalid={fieldState.invalid}>
-                <FieldLabel htmlFor="passphrase">Passphrase</FieldLabel>
+                <FieldLabel htmlFor="device-passphrase">Passphrase</FieldLabel>
                 <Input
                   {...field}
-                  id="passphrase"
+                  id="device-passphrase"
                   type="password"
                   autoComplete="current-password"
                   spellCheck={false}
                   readOnly={form.formState.isSubmitting}
                   aria-invalid={fieldState.invalid}
-                  aria-describedby={fieldState.error ? "passphrase-error" : undefined}
+                  aria-describedby={fieldState.error ? "device-passphrase-error" : undefined}
                 />
-
                 {fieldState.error && (
-                  <FieldError id="passphrase-error" errors={[fieldState.error]} />
+                  <FieldError id="device-passphrase-error" errors={[fieldState.error]} />
                 )}
               </Field>
             )}
@@ -81,7 +93,7 @@ export function UnlockVaultForm({ connection }: { connection: VaultConnection })
             <FieldError>{form.formState.errors.root.server.message}</FieldError>
           )}
           <Button type="submit" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? "Working securely…" : "Unlock vault"}
+            {form.formState.isSubmitting ? "Unlocking securely…" : "Unlock vault"}
           </Button>
         </FieldGroup>
       </form>

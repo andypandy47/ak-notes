@@ -4,48 +4,42 @@ import { Input } from "@/components/ui/input";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
 import {
+  useListVaultsQuery,
   useUpdateVaultPassphraseMutation,
-  useVaultQuery,
   type VaultConnection,
 } from "../api/vault";
 import { recoverVault } from "../crypto";
 import { recoverVaultSchema, type RecoverVaultValues } from "../form-schemas";
-import type { VaultSession } from "../types";
+import { useVault } from "../hooks/use-vault";
 import { VaultPanel } from "./vault-panel";
 
-export function RecoverVaultForm({
-  connection,
-  onUnlocked,
-  disconnect,
-  onUnlock,
-}: {
-  connection: VaultConnection;
-  onUnlocked: (session: VaultSession) => void;
-  disconnect: () => void;
-  onUnlock: () => void;
-}) {
+export function RecoverVaultForm({ connection }: { connection: VaultConnection }) {
   const form = useForm<RecoverVaultValues>({
     resolver: zodResolver(recoverVaultSchema),
     defaultValues: { passphrase: "", confirm: "", recovery: "" },
   });
-  const query = useVaultQuery(connection);
-  const mutation = useUpdateVaultPassphraseMutation(connection);
+
+  const { cancelRecovery, disconnect, completeUnlock } = useVault();
+
+  const listVaults = useListVaultsQuery(connection);
+  const updateVaultPassphrase = useUpdateVaultPassphraseMutation(connection);
 
   async function onSubmit({ passphrase, recovery }: RecoverVaultValues) {
     form.clearErrors("root");
     try {
-      const { data: current } = await query.refetch({ throwOnError: true });
+      const vault = listVaults.data?.[0];
 
-      if (!current) {
+      if (!vault) {
         throw new Error("The vault could not be found. Reconnect to check its state.");
       }
 
-      const recovered = await recoverVault(current.document, recovery, passphrase);
-      const vault = await mutation.mutateAsync({
-        expectedRevision: current.revision,
+      const recovered = await recoverVault(vault.document, recovery, passphrase);
+      const updatedVault = await updateVaultPassphrase.mutateAsync({
+        vaultId: vault.document.id,
+        expectedRevision: vault.revision,
         passphrase: recovered.passphrase,
       });
-      onUnlocked({ vault, key: recovered.key });
+      await completeUnlock(updatedVault, passphrase);
       form.reset();
     } catch (error) {
       form.setError("root.server", {
@@ -63,7 +57,7 @@ export function RecoverVaultForm({
           <Button variant="ghost" disabled={form.formState.isSubmitting} onClick={disconnect}>
             Disconnect
           </Button>
-          <Button variant="ghost" disabled={form.formState.isSubmitting} onClick={onUnlock}>
+          <Button variant="ghost" disabled={form.formState.isSubmitting} onClick={cancelRecovery}>
             Back to unlock
           </Button>
         </div>
@@ -117,7 +111,7 @@ export function RecoverVaultForm({
                   }
                 />
                 <FieldDescription id="passphrase-description">
-                  Use at least 15 characters. Several unrelated words make a good passphrase.
+                  Use at least 6 characters. Several unrelated words make a good passphrase.
                 </FieldDescription>
                 {fieldState.error && (
                   <FieldError id="passphrase-error" errors={[fieldState.error]} />

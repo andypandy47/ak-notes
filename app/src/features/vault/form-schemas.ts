@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const passphrase = z
   .string()
-  .min(15, "Use at least 15 characters.")
+  .min(6, "Use at least 6 characters.")
   .max(1024, "Use no more than 1,024 characters.");
 const newPassphrase = z.object({
   passphrase,
@@ -26,12 +26,11 @@ export const recoverVaultSchema = newPassphrase
       .regex(/^[A-Za-z0-9_-]{43}$/, "Enter the 43-character recovery key."),
   })
   .refine(matches, mismatch);
-export const connectVaultSchema = z.object({
-  token: z
-    .string()
-    .trim()
-    .regex(/^[A-Za-z0-9_-]{43,128}$/, "Enter a valid local API token (43–128 characters)."),
-});
+export const deviceTokenSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z0-9_-]{43,128}$/, "Enter a valid API token (43–128 characters).");
+export const connectVaultSchema = z.object({ token: deviceTokenSchema });
 export type CreateVaultValues = z.infer<typeof createVaultSchema>;
 export type UnlockVaultValues = z.infer<typeof unlockVaultSchema>;
 export type RecoverVaultValues = z.infer<typeof recoverVaultSchema>;

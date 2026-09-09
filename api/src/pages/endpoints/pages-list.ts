@@ -32,7 +32,7 @@ export class PageList extends OpenAPIRoute {
     const { query } = await this.getValidatedData<typeof this.schema>();
     return c.json({
       success: true,
-      ...(await listPages(c.env.DB, query.after ?? "", query.limit)),
+      ...(await listPages(c.env.DB, c.get("ownerId"), query.after ?? "", query.limit)),
     });
   }
 }
