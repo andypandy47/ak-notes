@@ -1,0 +1,110 @@
+name: Release app
+
+on:
+  push:
+    tags:
+      - "app-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Validate tag and application version
+        id: release
+        shell: bash
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        run: |
+          version=$(node -p "require('./app/package.json').version")
+          tauri_version=$(node -p "require('./app/src-tauri/tauri.conf.json').version")
+          cargo_version=$(sed -n 's/^version = "\([^"]*\)"/\1/p' app/src-tauri/Cargo.toml | head -1)
+          if [[ "${version}" != "${tauri_version}" || "${version}" != "${cargo_version}" ]]; then
+            echo "App versions disagree: package=${version}, tauri=${tauri_version}, cargo=${cargo_version}." >&2
+            exit 1
+          fi
+          if [[ ! "${VITE_API_URL}" =~ ^https://[^/]+/?$ ]]; then
+            echo "Set VITE_API_URL to the production API's HTTPS origin." >&2
+            exit 1
+          fi
+          tag="app-v${version}"
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_NAME}" != "${tag}" ]]; then
+            echo "Expected tag ${tag}, got ${GITHUB_REF_NAME}." >&2
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+      - run: npm run build --workspace app
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: validate
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            platform: ubuntu-22.04
+            args: ""
+          - name: macOS Apple Silicon
+            platform: macos-latest
+            args: --target aarch64-apple-darwin
+          - name: macOS Intel
+            platform: macos-latest
+            args: --target x86_64-apple-darwin
+          - name: Windows x64
+            platform: windows-latest
+            args: ""
+    runs-on: ${{ matrix.platform }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ startsWith(matrix.platform, 'macos-') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+      - name: Install Linux build dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
+      - run: npm ci
+      - name: Build and publish release assets
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+        with:
+          projectPath: app
+          tagName: ${{ needs.validate.outputs.tag }}
+          releaseName: AK Notes v__VERSION__
+          releaseBody: Download the installer or package for your platform from the assets below.
+          releaseDraft: false
+          prerelease: false
+          args: ${{ matrix.args }}

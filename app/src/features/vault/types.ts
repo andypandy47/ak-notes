@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VaultId } from "../../lib/ids";
 
 // Wire format v1. Keep aligned with the OpenAPI vault contract.
 const WrappedKey = z.strictObject({
@@ -13,7 +14,7 @@ export const PassphraseKey = z.strictObject({
 });
 export const VaultDocument = z.strictObject({
   version: z.literal(1),
-  id: z.uuid(),
+  id: VaultId,
   keyId: z.uuid(),
   algorithm: z.literal("AES-256-GCM"),
   passphrase: PassphraseKey,

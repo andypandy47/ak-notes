@@ -4,7 +4,7 @@ Last updated: 9 September 2026.
 
 This document captures the project brief, current implementation, and architecture discussions. Proposed approaches below are not approved implementation decisions.
 
-End-to-end encryption is an agreed requirement because pages may contain sensitive information. The initial implementation should work locally before cloud deployment or multi-device synchronization is added. Encryption is not yet implemented.
+End-to-end encryption is an agreed requirement because pages may contain sensitive information. The initial implementation works from a device-local database containing encrypted page data before cloud deployment or multi-device synchronization is added.
 
 ## Purpose and requirements
 
@@ -31,7 +31,7 @@ The app uses Tauri 2, React 19, TypeScript, and Vite. Tailwind CSS v4 is connect
 
 ## Backend and proposed synchronization
 
-The current design prototype uses BlockNote with its shadcn integration. It supports page creation, switching, title editing, slash commands, and draggable content blocks. Changes remain in memory for the session only; disk persistence and cloud sync are not connected. Native and Android behavior still need validation.
+The current design uses BlockNote with its shadcn integration. It supports page creation, switching, title editing, slash commands, and draggable content blocks. Page documents and summaries are encrypted before being persisted to device-local SQLite. Cloud sync is not connected, and native and Android behavior still need validation.
 
 The recommended storage approach for this editor is a versioned structured block document with Markdown import/export. This remains a proposal. Markdown conversion may lose features with no Markdown equivalent, so the earlier text-only storage approach below needs revisiting before implementation.
 
@@ -41,7 +41,7 @@ The backend must store encrypted page payloads, including titles and block conte
 
 The first proposed milestone is creating or unlocking a local vault, encrypting a page on the client, saving it through a locally running backend, and reopening and decrypting it after an app restart. Persistent client caches must also be encrypted. Key recovery, device authorization, and secure native key storage need explicit designs before use with sensitive real data.
 
-The proposed client design saves to a local SQLite database and queues uploads. Offline editing, automatic saving, and background synchronization have been recommended but are not yet confirmed requirements. Synchronization would occur after changes, on app opening or resuming, and periodically while active, without assuming Android keeps the app running in the background.
+The client saves to a local SQLite database and atomically queues an upload record with each page write. Local persistence is the primary write path; API synchronization is secondary. The initial sync implementation pushes queued pages after unlock, after local commits, and when connectivity returns, then compares the complete remote summary list to find newer pages. Incremental feeds, deletion synchronization, and automatic conflict resolution are deferred until their complexity is justified.
 
 To avoid lost edits, the proposed protocol includes:
 
@@ -63,6 +63,10 @@ This avoids routine account login screens while allowing individual devices to b
 These terms describe the discussion so far; refine them as the product design is agreed.
 
 **Page:** A titled document composed of editable blocks, with Markdown support.
+
+**Owner:** The person whose private notebook this is. The owner is the sole human principal in the intended product, even though the persistence and authentication code uses user records to represent principals.
+
+**Page summary:** The encrypted, sidebar-sized representation of a page containing its title. It is listed separately from the full page so clients can open page content on demand.
 
 **Block:** An individually editable and movable unit within a page, such as a paragraph, heading, or checklist item.
 

@@ -10,7 +10,7 @@ import {
   SidebarInput,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { CloudOff, Feather, Plus, Search } from "lucide-react";
+import { Feather, HardDrive, Plus, Search } from "lucide-react";
 import { useNotebook } from "../hooks/use-notebook";
 import { PageList } from "./page-list";
 
@@ -66,11 +66,11 @@ export function NotebookSidebar() {
       </SidebarContent>
       <SidebarFooter className="gap-2 border-t border-border p-5">
         <div className="flex items-center gap-2 text-xs">
-          <CloudOff className="size-4 shrink-0" aria-hidden="true" />
-          <span>Cloud sync not connected</span>
+          <HardDrive className="size-4 shrink-0" aria-hidden="true" />
+          <span>Local-first storage</span>
         </div>
         <p className="text-xs leading-relaxed text-muted-foreground">
-          Design preview · changes stay in this session
+          Changes are encrypted and saved on this device
         </p>
       </SidebarFooter>
     </Sidebar>

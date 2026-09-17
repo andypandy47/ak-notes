@@ -1,11 +1,12 @@
 import type { Context } from "hono";
 import { z } from "zod";
+import { PageId, VaultId } from "./ids";
 
 export type AppBindings = Pick<Env, "DB">;
 export type AppEnvironment = { Bindings: AppBindings; Variables: { ownerId: string } };
 export type AppContext = Context<AppEnvironment>;
-export const VaultParams = z.object({ vaultId: z.uuid() });
-export const PageParams = z.object({ pageId: z.uuid() });
+export const VaultParams = z.object({ vaultId: VaultId });
+export const PageParams = z.object({ pageId: PageId });
 export const Envelope = z.strictObject({
   version: z.literal(1),
   algorithm: z.literal("AES-256-GCM"),
@@ -21,22 +22,29 @@ export const Envelope = z.strictObject({
     .describe("Encrypted page JSON followed by the 16-byte authentication tag, base64 encoded"),
 });
 export const Page = z.object({
-  id: z.uuid(),
+  id: PageId,
   revision: z.number().int().positive(),
   updatedAt: z.iso.datetime(),
   envelope: Envelope,
 });
-export const SavePage = z.strictObject({
-  expectedRevision: z
-    .number()
-    .int()
-    .min(0)
-    .max(Number.MAX_SAFE_INTEGER - 1)
-    .describe("0 creates a page; otherwise must match its current revision"),
-  envelope: Envelope,
+export const PageSummary = Page.omit({ envelope: true }).extend({
+  summaryEnvelope: Envelope.nullable(),
 });
-
-export const PageMetadata = Page.omit({ envelope: true });
+export const SavePage = z
+  .strictObject({
+    expectedRevision: z
+      .number()
+      .int()
+      .min(0)
+      .max(Number.MAX_SAFE_INTEGER - 1)
+      .describe("0 creates a page; otherwise must match its current revision"),
+    envelope: Envelope,
+    summaryEnvelope: Envelope,
+  })
+  .refine((page) => page.envelope.keyId === page.summaryEnvelope.keyId, {
+    message: "Page and summary envelopes must use the same key",
+    path: ["summaryEnvelope", "keyId"],
+  });
 
 // Wire format v1. Keep aligned with the OpenAPI vault contract.
 const WrappedKey = z.strictObject({
@@ -51,7 +59,7 @@ export const PassphraseKey = z.strictObject({
 });
 export const VaultDocument = z.strictObject({
   version: z.literal(1),
-  id: z.uuid(),
+  id: VaultId,
   keyId: z.uuid(),
   algorithm: z.literal("AES-256-GCM"),
   passphrase: PassphraseKey,

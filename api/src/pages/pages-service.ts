@@ -1,5 +1,5 @@
 import { Envelope, type SavePage } from "../types";
-import { and, eq, gt, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { createDb } from "../db/client";
 import { pages, vaults } from "../db/schema";
 import type { z } from "zod";
@@ -31,20 +31,26 @@ export async function fetchPage(db: D1Database, ownerId: string, id: string) {
   return row ? decode(row) : null;
 }
 
-export async function listPages(db: D1Database, ownerId: string, after: string, limit: number) {
+export async function listPages(db: D1Database, ownerId: string) {
   const database = createDb(db);
   const ownedVaults = database
     .select({ id: vaults.id })
     .from(vaults)
     .where(eq(vaults.ownerId, ownerId));
   const rows = await database
-    .select({ id: pages.id, revision: pages.revision, updatedAt: pages.updatedAt })
+    .select({
+      id: pages.id,
+      revision: pages.revision,
+      updatedAt: pages.updatedAt,
+      summaryEnvelope: pages.summaryEnvelope,
+    })
     .from(pages)
-    .where(and(inArray(pages.vaultId, ownedVaults), gt(pages.id, after)))
-    .orderBy(pages.id)
-    .limit(limit + 1);
-  const pageItems = rows.slice(0, limit);
-  return { pages: pageItems, nextCursor: rows.length > limit ? pageItems.at(-1)!.id : null };
+    .where(inArray(pages.vaultId, ownedVaults))
+    .orderBy(pages.id);
+  return rows.map((page) => ({
+    ...page,
+    summaryEnvelope: page.summaryEnvelope ? Envelope.parse(page.summaryEnvelope) : null,
+  }));
 }
 
 export async function savePage(
@@ -81,7 +87,14 @@ export async function savePage(
     data.expectedRevision === 0
       ? await database
           .insert(pages)
-          .values({ id, vaultId: ownedVault.id, revision: 1, updatedAt, envelope: data.envelope })
+          .values({
+            id,
+            vaultId: ownedVault.id,
+            revision: 1,
+            updatedAt,
+            envelope: data.envelope,
+            summaryEnvelope: data.summaryEnvelope,
+          })
           .onConflictDoNothing()
           .returning()
       : await database
@@ -90,6 +103,7 @@ export async function savePage(
             revision: sql`${pages.revision} + 1`,
             updatedAt,
             envelope: data.envelope,
+            summaryEnvelope: data.summaryEnvelope,
           })
           .where(
             and(

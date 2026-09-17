@@ -5,11 +5,20 @@ import type { Envelope, VaultDocument } from "../types";
 
 type StoredEnvelope = z.infer<typeof Envelope>;
 
-export const users = sqliteTable("users", {
-  id: text("id").primaryKey().notNull(),
-  name: text("name").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
-});
+export const users = sqliteTable(
+  "users",
+  {
+    id: text("id").primaryKey().notNull(),
+    name: text("name").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+  },
+  (table) => [
+    check(
+      "users_id_valid",
+      sql`length(${table.id}) = 30 AND substr(${table.id}, 1, 4) = 'usr_' AND substr(${table.id}, 5, 1) GLOB '[0-7]' AND substr(${table.id}, 6) NOT GLOB '*[^0-9A-HJKMNP-TV-Z]*'`,
+    ),
+  ],
+);
 
 export const vaults = sqliteTable(
   "vaults",
@@ -23,6 +32,10 @@ export const vaults = sqliteTable(
     document: text("document", { mode: "json" }).$type<VaultDocument>().notNull(),
   },
   (table) => [
+    check(
+      "vaults_id_valid",
+      sql`length(${table.id}) = 30 AND substr(${table.id}, 1, 4) = 'vlt_' AND substr(${table.id}, 5, 1) GLOB '[0-7]' AND substr(${table.id}, 6) NOT GLOB '*[^0-9A-HJKMNP-TV-Z]*'`,
+    ),
     check("vaults_revision_positive", sql`${table.revision} > 0`),
     check("vaults_document_valid", sql`json_valid(${table.document})`),
     check(
@@ -42,10 +55,19 @@ export const pages = sqliteTable(
     revision: integer("revision").notNull(),
     updatedAt: text("updated_at").notNull(),
     envelope: text("envelope", { mode: "json" }).$type<StoredEnvelope>().notNull(),
+    summaryEnvelope: text("summary_envelope", { mode: "json" }).$type<StoredEnvelope>(),
   },
   (table) => [
+    check(
+      "pages_id_valid",
+      sql`length(${table.id}) = 30 AND substr(${table.id}, 1, 4) = 'pag_' AND substr(${table.id}, 5, 1) GLOB '[0-7]' AND substr(${table.id}, 6) NOT GLOB '*[^0-9A-HJKMNP-TV-Z]*'`,
+    ),
     check("pages_revision_positive", sql`${table.revision} > 0`),
     check("pages_envelope_valid", sql`json_valid(${table.envelope})`),
+    check(
+      "pages_summary_envelope_valid",
+      sql`${table.summaryEnvelope} IS NULL OR json_valid(${table.summaryEnvelope})`,
+    ),
     index("pages_vault_id_id").on(table.vaultId, table.id),
   ],
 );
@@ -64,6 +86,10 @@ export const apiTokens = sqliteTable(
     revokedAt: integer("revoked_at"),
   },
   (table) => [
+    check(
+      "api_tokens_id_valid",
+      sql`length(${table.id}) = 30 AND substr(${table.id}, 1, 4) = 'tok_' AND substr(${table.id}, 5, 1) GLOB '[0-7]' AND substr(${table.id}, 6) NOT GLOB '*[^0-9A-HJKMNP-TV-Z]*'`,
+    ),
     check(
       "api_tokens_hash_valid",
       sql`length(${table.tokenHash}) = 64 AND ${table.tokenHash} NOT GLOB '*[^0-9a-f]*'`,

@@ -1,6 +1,7 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { parseArgs } from "node:util";
 import { fileURLToPath, pathToFileURL, URL } from "node:url";
+import { createApiTokenId, createUserId } from "../src/ids.ts";
 
 export async function openLocalDatabase() {
   const { getPlatformProxy } = await import("wrangler");
@@ -30,9 +31,9 @@ export async function issueToken(
   ) {
     throw new Error("User not found. Omit --user to create a new user.");
   }
-  const userId = options.userId ?? randomUUID();
+  const userId = options.userId ?? createUserId();
   const token = randomBytes(32).toString("base64url");
-  const id = randomUUID();
+  const id = createApiTokenId();
   const createdAt = Date.now();
   const expiresAt = options.days === undefined ? null : createdAt + options.days * 86400000;
   const statements = [];
@@ -71,30 +72,38 @@ export async function importPersonalToken(db: D1Database, token: string) {
   }
   const hash = createHash("sha256").update(token).digest("hex");
   const createdAt = Date.now();
-  await db
-    .prepare(
-      "INSERT INTO users (id, name, created_at) VALUES ('personal', 'Personal', ?1) ON CONFLICT(id) DO NOTHING",
-    )
-    .bind(createdAt)
-    .run();
-  await db
-    .prepare(
-      "INSERT INTO api_tokens (id, user_id, label, token_hash, created_at) VALUES (?1, 'personal', 'Personal local token', ?2, ?3) ON CONFLICT(token_hash) DO NOTHING",
-    )
-    .bind(randomUUID(), hash, createdAt)
-    .run();
   const existing = await db
-    .prepare(
-      "SELECT id FROM api_tokens WHERE token_hash = ?1 AND user_id = 'personal' AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > ?2)",
-    )
-    .bind(hash, Date.now())
-    .first<{ id: string }>();
-  if (!existing) {
-    throw new Error(
-      "This token is revoked, expired, or belongs to another user. Issue a new token for personal; setup will not reactivate it.",
-    );
+    .prepare("SELECT id, revoked_at, expires_at FROM api_tokens WHERE token_hash = ?1")
+    .bind(hash)
+    .first<{ id: string; revoked_at: number | null; expires_at: number | null }>();
+  if (existing) {
+    if (
+      existing.revoked_at !== null ||
+      (existing.expires_at !== null && existing.expires_at <= createdAt)
+    ) {
+      throw new Error(
+        "This token is revoked or expired. Issue a new token; setup will not reactivate it.",
+      );
+    }
+    return existing.id;
   }
-  return existing.id;
+
+  const userId = createUserId();
+  const id = createApiTokenId();
+  const results = await db.batch([
+    db
+      .prepare("INSERT INTO users (id, name, created_at) VALUES (?1, 'Personal', ?2)")
+      .bind(userId, createdAt),
+    db
+      .prepare(
+        "INSERT INTO api_tokens (id, user_id, label, token_hash, created_at) VALUES (?1, ?2, 'Personal local token', ?3, ?4)",
+      )
+      .bind(id, userId, hash, createdAt),
+  ]);
+  if (results.some((result) => !result.success)) {
+    throw new Error("Could not import the personal token.");
+  }
+  return id;
 }
 
 export async function revokeToken(db: D1Database, id: string) {

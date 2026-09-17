@@ -1,10 +1,22 @@
 import { VaultDocument, type PassphraseKey } from "./types";
+import { createVaultId } from "../../lib/ids";
 
 const encoder = new TextEncoder();
-const random = (length: number) => crypto.getRandomValues(new Uint8Array(length));
+const encode = (value: string): Uint8Array<ArrayBuffer> => {
+  const source = encoder.encode(value);
+  const bytes = new Uint8Array(new ArrayBuffer(source.byteLength));
+  bytes.set(source);
+  return bytes;
+};
+const random = (length: number): Uint8Array<ArrayBuffer> =>
+  crypto.getRandomValues(new Uint8Array(new ArrayBuffer(length)));
 const base64 = (bytes: Uint8Array<ArrayBuffer>) => btoa(String.fromCharCode(...bytes));
 function decode(value: string) {
-  const bytes = Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+  const decoded = atob(value);
+  const bytes = new Uint8Array(new ArrayBuffer(decoded.length));
+  for (let index = 0; index < decoded.length; index += 1) {
+    bytes[index] = decoded.charCodeAt(index);
+  }
   if (base64(bytes) !== value) {
     throw new Error("Invalid key encoding");
   }
@@ -18,7 +30,7 @@ function associatedData(
   purpose: "passphrase" | "recovery",
   settings?: Omit<PassphraseKey, "wrappedKey">,
 ) {
-  return encoder.encode(
+  return encode(
     JSON.stringify([
       "aknotes-vault-key",
       1,
@@ -37,7 +49,7 @@ async function derivePassphraseKey(
   if (!passphrase || passphrase.length > 1024) {
     throw new Error("Invalid passphrase length");
   }
-  const bytes = encoder.encode(passphrase);
+  const bytes = encode(passphrase);
   try {
     const material = await crypto.subtle.importKey("raw", bytes, "PBKDF2", false, ["deriveKey"]);
     return await crypto.subtle.deriveKey(
@@ -97,7 +109,7 @@ async function wrapWithPassphrase(
 }
 
 export async function createVault(passphrase: string) {
-  const identity = { id: crypto.randomUUID(), keyId: crypto.randomUUID() };
+  const identity = { id: createVaultId(), keyId: crypto.randomUUID() };
   const raw = random(32);
   const recovery = random(32);
   try {

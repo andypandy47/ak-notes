@@ -58,3 +58,7 @@ Review every changed frontend file and verify:
 
 All api requests should be implemented using tanstack query and react hooks. Each endpoint needed to be called should be implemented as it's own reusable query or mutation hook which can then be
 pulled into components.
+
+### Tanstack
+
+When writing tanstack queries try to keep abstraction to a minimum. Don't abstract query options into their own vars just write them directly in the query.

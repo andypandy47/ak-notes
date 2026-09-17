@@ -1,39 +1,57 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { PageConflictError, pagesKey, usePagesQuery, useSavePageMutation } from "../api/pages";
-import type { NotesConnection, Page, PageChanges, PageEncryptionContext } from "../types";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { localPageKeys } from "@/lib/query-keys";
+import { createPageId } from "../../../lib/ids";
+import {
+  useLocalPageQuery,
+  useLocalPagesQuery,
+  useSaveLocalPageMutation,
+} from "../hooks/use-local-pages";
+import type { Page, PageChanges, PageEncryptionContext, PageSummary } from "../types";
 import { NotebookContext } from "./notebook-context";
+import { useSync } from "@/features/sync/use-sync";
+import { useVault } from "@/features/vault/hooks/use-vault";
 
 const SAVE_DELAY_MS = 750;
 
-export function NotebookProvider({
-  connection,
-  encryption,
-  children,
-}: {
-  connection: NotesConnection;
-  encryption: PageEncryptionContext;
-  children: ReactNode;
-}) {
+export function NotebookProvider({ children }: { children: ReactNode }) {
+  const { requestSync } = useSync();
+  const { session } = useVault();
+
+  if (!session) {
+    throw new Error("No active vault session found.");
+  }
+
+  const encryption: PageEncryptionContext = {
+    key: session?.key,
+    keyId: session?.vault.document.keyId,
+  };
+  const vaultId = session?.vault.document.id ?? "";
+
   const queryClient = useQueryClient();
-  const pagesQuery = usePagesQuery(connection, encryption);
-  const savePage = useSavePageMutation(connection, encryption);
+  const summariesQuery = useLocalPagesQuery(vaultId, encryption);
+  const savePage = useSaveLocalPageMutation(vaultId, encryption);
+
   const [activeId, setActiveId] = useState<string | null>(null);
+
   const [query, setQuery] = useState("");
+
   const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const dirtyIds = useRef(new Set<string>());
   const savingPages = useRef(new Map<string, Promise<boolean>>());
-  const queryKey = useMemo(() => pagesKey(connection), [connection]);
-  const pages = pagesQuery.data ?? [];
-  const activePage = pages.find((page) => page.document.id === activeId) ?? pages[0] ?? null;
-  const normalizedQuery = query.trim().toLowerCase();
-  const visiblePages = normalizedQuery
-    ? pages.filter((page) => page.document.title.toLowerCase().includes(normalizedQuery))
-    : pages;
 
-  function currentPage(id: string) {
-    return queryClient.getQueryData<Page[]>(queryKey)?.find((page) => page.document.id === id);
-  }
+  const summaries = summariesQuery.data ?? [];
+  const selectedId = activeId ?? summaries[0]?.id ?? null;
+  const activeSummary = summaries.find((summary) => summary.id === selectedId) ?? null;
+
+  const pageQuery = useLocalPageQuery(vaultId, encryption, selectedId);
+  const activePage = pageQuery.data ?? null;
+
+  const normalizedQuery = query.trim().toLowerCase();
+
+  const visiblePages = normalizedQuery
+    ? summaries.filter((page) => page.title.toLowerCase().includes(normalizedQuery))
+    : summaries;
 
   async function flushPage(id: string): Promise<boolean> {
     const timer = timers.current.get(id);
@@ -41,15 +59,18 @@ export function NotebookProvider({
       clearTimeout(timer);
       timers.current.delete(id);
     }
+
     const activeSave = savingPages.current.get(id);
     if (activeSave) {
       const saved = await activeSave;
       return saved && dirtyIds.current.has(id) ? flushPage(id) : saved;
     }
+
     if (!dirtyIds.current.has(id)) {
       return true;
     }
-    const page = currentPage(id);
+
+    const page = queryClient.getQueryData<Page>(localPageKeys.detail(vaultId, id));
     if (!page) {
       dirtyIds.current.delete(id);
       return true;
@@ -60,6 +81,7 @@ export function NotebookProvider({
       let failed = false;
       try {
         await savePage.mutateAsync(page);
+        requestSync();
         return true;
       } catch {
         failed = true;
@@ -91,11 +113,18 @@ export function NotebookProvider({
     if (savePage.isError) {
       savePage.reset();
     }
-    queryClient.setQueryData<Page[]>(queryKey, (current) =>
-      current?.map((page) =>
-        page.document.id === id ? { ...page, document: { ...page.document, ...changes } } : page,
-      ),
+
+    queryClient.setQueryData<Page>(localPageKeys.detail(vaultId, id), (current) =>
+      current ? { ...current, document: { ...current.document, ...changes } } : current,
     );
+    if (changes.title !== undefined) {
+      queryClient.setQueryData<PageSummary[]>(localPageKeys.all(vaultId), (current) =>
+        current?.map((summary) =>
+          summary.id === id ? { ...summary, title: changes.title! } : summary,
+        ),
+      );
+    }
+
     dirtyIds.current.add(id);
     scheduleSave(id);
   }
@@ -104,13 +133,19 @@ export function NotebookProvider({
     if (savePage.isError) {
       savePage.reset();
     }
-    const id = crypto.randomUUID();
+    const id = createPageId();
+    const updatedAt = new Date().toISOString();
     const page: Page = {
       document: { version: 1, id, title: "", blocks: [{ type: "paragraph" }] },
       revision: 0,
-      updatedAt: new Date().toISOString(),
+      updatedAt,
     };
-    queryClient.setQueryData<Page[]>(queryKey, (current) => [...(current ?? []), page]);
+    const summary: PageSummary = { id, title: "", revision: 0, updatedAt };
+    queryClient.setQueryData<Page>(localPageKeys.detail(vaultId, id), page);
+    queryClient.setQueryData<PageSummary[]>(localPageKeys.all(vaultId), (current) => [
+      ...(current ?? []),
+      summary,
+    ]);
     dirtyIds.current.add(id);
     setActiveId(id);
     setQuery("");
@@ -127,18 +162,6 @@ export function NotebookProvider({
     return flushPage(failedId);
   }
 
-  function useServerVersion() {
-    if (!(savePage.error instanceof PageConflictError)) {
-      return;
-    }
-    const serverPage = savePage.error.serverPage;
-    dirtyIds.current.delete(serverPage.document.id);
-    queryClient.setQueryData<Page[]>(queryKey, (current) =>
-      current?.map((page) => (page.document.id === serverPage.document.id ? serverPage : page)),
-    );
-    savePage.reset();
-  }
-
   async function prepareToLock() {
     const ids = new Set([
       ...dirtyIds.current,
@@ -149,8 +172,8 @@ export function NotebookProvider({
     if (results.some((saved) => !saved)) {
       return false;
     }
-    await queryClient.cancelQueries({ queryKey });
-    queryClient.removeQueries({ queryKey });
+    await queryClient.cancelQueries({ queryKey: localPageKeys.all(vaultId) });
+    queryClient.removeQueries({ queryKey: localPageKeys.all(vaultId) });
     return true;
   }
 
@@ -160,18 +183,19 @@ export function NotebookProvider({
       for (const timer of activeTimers.values()) {
         clearTimeout(timer);
       }
-      void queryClient.cancelQueries({ queryKey });
-      queryClient.removeQueries({ queryKey });
+      void queryClient.cancelQueries({ queryKey: localPageKeys.all(vaultId) });
+      queryClient.removeQueries({ queryKey: localPageKeys.all(vaultId) });
     };
-  }, [queryClient, queryKey]);
+  }, [queryClient, vaultId]);
 
-  const conflict = savePage.error instanceof PageConflictError ? savePage.error : null;
   const value = {
     activePage,
+    activeSummary,
     visiblePages,
-    pageCount: pages.length,
-    isLoading: pagesQuery.isLoading,
-    loadError: pagesQuery.error,
+    pageCount: summaries.length,
+    isLoading: summariesQuery.isLoading,
+    isPageLoading: pageQuery.isLoading,
+    loadError: summariesQuery.error ?? pageQuery.error,
     saveStatus: savePage.isPending
       ? ("saving" as const)
       : savePage.isError
@@ -180,18 +204,16 @@ export function NotebookProvider({
           ? ("saved" as const)
           : ("idle" as const),
     saveError: savePage.error,
-    conflict,
     query,
     setQuery,
     selectPage: (id: string) => {
-      if (pages.some((page) => page.document.id === id)) {
+      if (summaries.some((page) => page.id === id)) {
         setActiveId(id);
       }
     },
     updatePage,
     addPage,
     retrySave,
-    useServerVersion,
     prepareToLock,
   };
 

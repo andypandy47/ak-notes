@@ -6,7 +6,7 @@ import { useNotebook } from "../hooks/use-notebook";
 import { useSidebar } from "@/components/ui/sidebar";
 
 export function PageList() {
-  const { visiblePages: pages, activePage, selectPage, isLoading } = useNotebook();
+  const { visiblePages: pages, activeSummary, selectPage, isLoading } = useNotebook();
   const { isMobile, setOpenMobile } = useSidebar();
   function handleSelectPage(id: string) {
     selectPage(id);
@@ -21,17 +21,17 @@ export function PageList() {
           <PageListSkeleton />
         ) : (
           pages.map((item) => (
-            <SidebarMenuItem key={item.document.id}>
+            <SidebarMenuItem key={item.id}>
               <SidebarMenuButton
                 size="lg"
                 className="h-auto items-start gap-3 px-3 py-3.5"
-                isActive={item.document.id === activePage?.document.id}
-                onClick={() => handleSelectPage(item.document.id)}
-                aria-current={item.document.id === activePage?.document.id ? "page" : undefined}
+                isActive={item.id === activeSummary?.id}
+                onClick={() => handleSelectPage(item.id)}
+                aria-current={item.id === activeSummary?.id ? "page" : undefined}
               >
                 <FileText aria-hidden="true" />
                 <span className="flex min-w-0 flex-col gap-1 text-xs font-medium">
-                  <span className="truncate">{item.document.title || "Untitled"}</span>
+                  <span className="truncate">{item.title || "Untitled"}</span>
                   <span className="text-xs font-normal text-muted-foreground">
                     Edited {formatDate(item.updatedAt)}
                   </span>

@@ -11,8 +11,8 @@
   "scripts": {
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "lint": "oxlint && oxlint --no-ignore --config api/oxlint.test.json api/test",
+    "lint:fix": "oxlint --fix && oxlint --no-ignore --config api/oxlint.test.json --fix api/test"
   },
   "devDependencies": {
     "oxfmt": "^0.66.0",

@@ -2,9 +2,8 @@ import { Button } from "@/components/ui/button";
 import { FieldError, FieldGroup } from "@/components/ui/field";
 import { useMutationState } from "@tanstack/react-query";
 import { type ReactNode } from "react";
-import { QUERY_KEYS, useListVaultsQuery, type VaultConnection } from "../api/vault";
+import { QUERY_KEYS, useListVaultsQuery } from "../api/vault";
 import { useVault } from "../hooks/use-vault";
-import type { VaultSession } from "../types";
 import { ConnectVaultForm } from "./connect-vault-form";
 import { CreateVaultForm } from "./create-vault-form";
 import { RecoverVaultForm } from "./recover-vault-form";
@@ -12,10 +11,8 @@ import { UnlockDeviceForm } from "./unlock-device-form";
 import { UnlockVaultForm } from "./unlock-vault-form";
 import { VaultPanel } from "./vault-panel";
 
-type Content = (session: VaultSession, connection: VaultConnection, lock: () => void) => ReactNode;
-
-export function VaultGate({ children }: { children: Content }) {
-  const { isManualTokenEntryRequested, connection, session, hasDeviceCredential, connect, lock } =
+export function VaultGate({ children }: { children: ReactNode }) {
+  const { isManualTokenEntryRequested, connection, session, hasDeviceCredential, connect } =
     useVault();
 
   if (hasDeviceCredential.isLoading) {
@@ -31,7 +28,7 @@ export function VaultGate({ children }: { children: Content }) {
   }
 
   if (session && connection) {
-    return children(session, connection, lock);
+    return children;
   }
 
   if (connection) {

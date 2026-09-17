@@ -4,7 +4,10 @@ The frontend follows Bulletproof React's dependency direction: shared code is us
 
 - `src/app/app.tsx`: application composition and future providers or routes.
 - `src/features/notes/components/`: notebook composition, sidebar, page list, toolbar, note page, and block-editor adapter.
-- `src/features/notes/context/`: typed notebook context and its provider, which owns session-only page state, selection, search, creation, and updates. The app layer injects one provider per notebook.
+- `src/features/notes/context/`: typed notebook context and its provider, which owns selection, search, creation, and debounced local updates. Page data itself is derived from TanStack Query entries backed by the encrypted local repository.
+- `src/features/notes/data/local-pages.ts`: the only frontend module that talks directly to the Tauri SQL plugin. It encrypts documents and summaries before writing them to device-local SQLite.
+- `src/features/notes/hooks/use-local-pages.ts`: query and mutation hooks over the local repository. The query cache exposes local data to React but is not the durable store.
+- `src/features/sync/`: owns remote page requests, the SQLite sync repository, the framework-independent sync cycle, and the React provider/hook that expose derived sync state. The first implementation pushes queued pages and scans remote summaries for newer revisions; it deliberately has no change feed or automatic conflict merge.
 - `src/features/notes/hooks/use-notebook.ts`: reads the shared context and throws a clear error outside its provider. Sidebar, page list, toolbar, and note page consume this hook directly instead of receiving notebook props. Updates take an explicit page ID and can only change title or blocks.
 - `src/features/notes/types.ts`: note-specific types.
 - `src/features/notes/data/demo-pages.ts`: prototype seed content, cloned for each notebook instance.
@@ -15,6 +18,6 @@ The frontend follows Bulletproof React's dependency direction: shared code is us
 
 Sidebar visibility belongs to shadcn's `SidebarProvider`, composed in the notebook. `NotebookSidebar` uses Sidebar header, content, footer, group, and menu primitives. On mobile it opens as a sheet and closes after page selection or creation. The sidebar shortcut ignores editable fields so it does not intercept editor formatting. The page collection and selection belong to `NotebookProvider`; components call context methods in their own event handlers. The editor owns its editing state and reports document changes through a callback; its page-ID key ensures a fresh editor on page switches.
 
-There is no server data yet, so no query client, global store, router, or empty API layer has been introduced. When the backend exists, its server state should use a query cache rather than a general-purpose store. Offline drafts and synchronization need a separate design before replacing the current in-memory prototype.
+The local SQLite database containing encrypted page data is the notebook's durable working copy. Each local page upsert also queues its pending sync operation through a SQLite trigger in the same transaction. Sync runs after unlock, after a local commit, and when connectivity returns. A revision conflict keeps the local operation queued and reports an error; richer conflict handling and an incremental server feed can replace this simple policy later without changing notes components.
 
 The dependency boundaries above are conventions for now, not ESLint-enforced rules.

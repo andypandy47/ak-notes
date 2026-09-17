@@ -19,6 +19,7 @@
     "coverage",
     ".git",
     "api/worker-configuration.d.ts",
+    "api/test",
     ".wrangler"
   ],
   "options": {

@@ -8,22 +8,25 @@ import {
   EmptyContent,
 } from "@/components/ui/empty";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate, formatTime } from "@/utils/format-date";
 import { NoteEditor } from "./note-editor";
 import { useNotebook } from "../hooks/use-notebook";
 
 export function NotePage() {
-  const { activePage: page, updatePage, addPage, isLoading, loadError } = useNotebook();
-  if (isLoading) {
-    return (
-      <Empty>
-        <EmptyHeader>
-          <EmptyTitle>Opening your pages</EmptyTitle>
-          <EmptyDescription>Fetching and decrypting your notebook on this device.</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    );
+  const {
+    activePage: page,
+    updatePage,
+    addPage,
+    isLoading,
+    isPageLoading,
+    loadError,
+  } = useNotebook();
+
+  if (isLoading || isPageLoading) {
+    return <NotePageSkeleton />;
   }
+
   if (loadError) {
     return (
       <Empty>
@@ -34,6 +37,7 @@ export function NotePage() {
       </Empty>
     );
   }
+
   if (!page) {
     return (
       <Empty>
@@ -47,6 +51,7 @@ export function NotePage() {
       </Empty>
     );
   }
+
   return (
     <article className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8 md:px-10 md:py-10 lg:px-16 lg:py-16">
       <div className="flex items-center gap-4 text-xs tracking-widest text-muted-foreground">
@@ -82,6 +87,46 @@ export function NotePage() {
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <ArrowUpRight className="size-4 shrink-0" aria-hidden="true" />
         <span>Type / for blocks. Grab the ⋮⋮ handle to move them.</span>
+      </div>
+    </article>
+  );
+}
+
+function NotePageSkeleton() {
+  return (
+    <article
+      className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-6 py-8 md:px-10 md:py-10 lg:px-16 lg:py-16"
+      aria-label="Opening your pages"
+      aria-busy="true"
+    >
+      <div className="flex items-center gap-4" aria-hidden="true">
+        <Skeleton className="size-12 rounded-xl md:size-14" />
+        <Skeleton className="h-3 w-36" />
+      </div>
+
+      <div className="flex min-h-24 flex-col gap-3" aria-hidden="true">
+        <Skeleton className="h-10 w-3/4 lg:h-12" />
+        <Skeleton className="h-10 w-1/2 lg:h-12" />
+      </div>
+
+      <div className="flex items-center gap-2" aria-hidden="true">
+        <Skeleton className="size-3" />
+        <Skeleton className="h-3 w-56" />
+        <Skeleton className="h-3 w-14" />
+      </div>
+
+      <div className="flex min-h-64 flex-col gap-4 px-4 py-2" aria-hidden="true">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-11/12" />
+        <Skeleton className="h-4 w-4/5" />
+        <Skeleton className="mt-4 h-6 w-2/5" />
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-3/4" />
+      </div>
+
+      <div className="flex items-center gap-2" aria-hidden="true">
+        <Skeleton className="size-4" />
+        <Skeleton className="h-3 w-72 max-w-full" />
       </div>
     </article>
   );

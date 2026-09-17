@@ -2,16 +2,20 @@
   "name": "cloudflare-workers-openapi",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
   "scripts": {
-    "deploy": "wrangler deploy",
+    "deploy": "wrangler deploy --env production",
     "dev": "wrangler dev",
     "start": "wrangler dev",
     "cf-typegen": "wrangler types",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "wrangler d1 migrations apply DB --local",
-    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote --env production",
     "typecheck": "tsc --noEmit",
-    "test": "node --test tests/*.test.mjs",
+    "test": "vitest run --config vitest.config.ts",
+    "test:vitest": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "test:typecheck": "tsc --project test/tsconfig.json --noEmit",
     "setup:local": "node scripts/setup-local.mts",
     "tokens": "node scripts/tokens.mts"
   },
@@ -19,14 +23,17 @@
     "chanfana": "^3.3.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.12",
+    "ulid": "^3.0.2",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.1.6",
     "@types/node": "^25.9.5",
     "drizzle-kit": "^0.31.10",
     "esbuild": "^0.28.1",
     "miniflare": "^5.20260903.0-alpha",
     "typescript": "~6.0.3",
+    "vitest": "^4.1.11",
     "wrangler": "^4.129.0"
   }
 }

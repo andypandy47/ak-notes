@@ -1,9 +1,10 @@
 import type { PartialBlock } from "@blocknote/core";
 import { z } from "zod";
+import { PageId } from "../../lib/ids";
 
 export const PageDocument = z.strictObject({
   version: z.literal(1),
-  id: z.uuid(),
+  id: PageId,
   title: z.string().max(10000),
   blocks: z.array(z.record(z.string(), z.unknown())),
 });
@@ -18,7 +19,13 @@ export type Page = {
   updatedAt: string;
 };
 
+export type PageSummary = {
+  id: string;
+  title: string;
+  revision: number;
+  updatedAt: string;
+};
+
 export type PageChanges = Pick<Partial<PageDocument>, "title" | "blocks">;
 
-export type NotesConnection = { token: string; sessionId: string };
 export type PageEncryptionContext = { key: CryptoKey; keyId: string };

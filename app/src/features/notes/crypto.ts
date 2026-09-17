@@ -1,26 +1,16 @@
 import { z } from "zod";
-import { PageDocument, type Page, type PageEncryptionContext } from "./types";
+import { PageEnvelope, type PageEnvelope as PageEnvelopeValue } from "@/types/encrypted-page";
+import { PageId } from "../../lib/ids";
+import { PageDocument, type PageEncryptionContext } from "./types";
 
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 
-export const PageEnvelope = z.strictObject({
+const PageSummaryDocument = z.strictObject({
   version: z.literal(1),
-  algorithm: z.literal("AES-256-GCM"),
-  keyId: z.uuid(),
-  nonce: z.string().regex(/^[A-Za-z0-9+/]{16}$/),
-  ciphertext: z.base64(),
+  id: PageId,
+  title: z.string().max(10000),
 });
-
-export const EncryptedPage = z.object({
-  id: z.uuid(),
-  revision: z.number().int().positive(),
-  updatedAt: z.iso.datetime(),
-  envelope: PageEnvelope,
-});
-
-export type PageEnvelope = z.infer<typeof PageEnvelope>;
-export type EncryptedPage = z.infer<typeof EncryptedPage>;
 
 const toBase64 = (bytes: Uint8Array<ArrayBuffer>) => btoa(String.fromCharCode(...bytes));
 
@@ -32,23 +22,25 @@ function fromBase64(value: string) {
   return bytes;
 }
 
-function associatedData(pageId: string, keyId: string) {
-  return encoder.encode(JSON.stringify(["aknotes-page", 1, pageId, keyId, "AES-256-GCM"]));
+function associatedData(pageId: string, keyId: string, purpose: "document" | "summary") {
+  const fields = ["aknotes-page", 1, pageId, keyId, "AES-256-GCM"];
+  return encoder.encode(JSON.stringify(purpose === "summary" ? [...fields, purpose] : fields));
 }
 
-export async function encryptPage(
-  document: PageDocument,
+async function encryptJson(
+  value: unknown,
+  pageId: string,
   encryption: PageEncryptionContext,
-): Promise<PageEnvelope> {
-  const parsed = PageDocument.parse(document) as PageDocument;
+  purpose: "document" | "summary",
+): Promise<PageEnvelopeValue> {
   const nonce = crypto.getRandomValues(new Uint8Array(12));
-  const plaintext = encoder.encode(JSON.stringify(parsed));
+  const plaintext = encoder.encode(JSON.stringify(value));
   try {
     const ciphertext = await crypto.subtle.encrypt(
       {
         name: "AES-GCM",
         iv: nonce,
-        additionalData: associatedData(parsed.id, encryption.keyId),
+        additionalData: associatedData(pageId, encryption.keyId, purpose),
         tagLength: 128,
       },
       encryption.key,
@@ -66,12 +58,29 @@ export async function encryptPage(
   }
 }
 
-export async function decryptPage(
-  input: EncryptedPage,
+export async function encryptPage(
+  document: PageDocument,
   encryption: PageEncryptionContext,
-): Promise<Page> {
-  const page = EncryptedPage.parse(input);
-  if (page.envelope.keyId !== encryption.keyId) {
+): Promise<PageEnvelope> {
+  const parsed = PageDocument.parse(document) as PageDocument;
+  return encryptJson(parsed, parsed.id, encryption, "document");
+}
+
+export async function encryptPageSummary(
+  document: PageDocument,
+  encryption: PageEncryptionContext,
+): Promise<PageEnvelope> {
+  const summary = PageSummaryDocument.parse({ version: 1, id: document.id, title: document.title });
+  return encryptJson(summary, summary.id, encryption, "summary");
+}
+
+export async function decryptPageEnvelope(
+  pageId: string,
+  input: PageEnvelopeValue,
+  encryption: PageEncryptionContext,
+): Promise<PageDocument> {
+  const envelope = PageEnvelope.parse(input);
+  if (envelope.keyId !== encryption.keyId) {
     throw new Error("This page was encrypted with a different vault key.");
   }
   try {
@@ -79,20 +88,20 @@ export async function decryptPage(
       await crypto.subtle.decrypt(
         {
           name: "AES-GCM",
-          iv: fromBase64(page.envelope.nonce),
-          additionalData: associatedData(page.id, page.envelope.keyId),
+          iv: fromBase64(envelope.nonce),
+          additionalData: associatedData(pageId, envelope.keyId, "document"),
           tagLength: 128,
         },
         encryption.key,
-        fromBase64(page.envelope.ciphertext),
+        fromBase64(envelope.ciphertext),
       ),
     );
     try {
       const document = PageDocument.parse(JSON.parse(decoder.decode(plaintext))) as PageDocument;
-      if (document.id !== page.id) {
+      if (document.id !== pageId) {
         throw new Error("The encrypted page identity does not match its record.");
       }
-      return { document, revision: page.revision, updatedAt: page.updatedAt };
+      return document;
     } finally {
       plaintext.fill(0);
     }
@@ -101,5 +110,49 @@ export async function decryptPage(
       throw error;
     }
     throw new Error("Could not decrypt a page. Its data may be damaged or use another vault key.");
+  }
+}
+
+export async function decryptPageSummaryEnvelope(
+  pageId: string,
+  input: PageEnvelopeValue,
+  encryption: PageEncryptionContext,
+) {
+  const envelope = PageEnvelope.parse(input);
+
+  if (envelope.keyId !== encryption.keyId) {
+    throw new Error("This page summary was encrypted with a different vault key.");
+  }
+
+  try {
+    const plaintext = new Uint8Array(
+      await crypto.subtle.decrypt(
+        {
+          name: "AES-GCM",
+          iv: fromBase64(envelope.nonce),
+          additionalData: associatedData(pageId, envelope.keyId, "summary"),
+          tagLength: 128,
+        },
+        encryption.key,
+        fromBase64(envelope.ciphertext),
+      ),
+    );
+
+    try {
+      const summary = PageSummaryDocument.parse(JSON.parse(decoder.decode(plaintext)));
+      if (summary.id !== pageId) {
+        throw new Error("The encrypted page summary identity does not match its record.");
+      }
+      return summary;
+    } finally {
+      plaintext.fill(0);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("The encrypted page summary")) {
+      throw error;
+    }
+    throw new Error(
+      "Could not decrypt a page summary. Its data may be damaged or use another vault key.",
+    );
   }
 }

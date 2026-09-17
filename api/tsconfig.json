@@ -19,6 +19,6 @@
     "lib": ["es2024"],
     "types": ["./worker-configuration.d.ts", "@types/node", "node"]
   },
-  "exclude": ["node_modules", "dist", "tests"],
+  "exclude": ["node_modules", "dist", "test"],
   "include": ["src", "scripts/*.mts", "worker-configuration.d.ts"]
 }
