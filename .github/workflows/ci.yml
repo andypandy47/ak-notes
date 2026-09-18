@@ -78,6 +78,7 @@ jobs:
     timeout-minutes: 45
     env:
       VITE_API_URL: ${{ needs.deploy-preview.outputs.api-url }}
+      VITE_APP_ENV: preview
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -107,6 +108,7 @@ jobs:
   #   timeout-minutes: 60
   #   env:
   #     VITE_API_URL: ${{ needs.deploy-preview.outputs.api-url }}
+  #     VITE_APP_ENV: preview
   #   steps:
   #     - uses: actions/checkout@v7
   #     - uses: actions/setup-node@v6

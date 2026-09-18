@@ -17,6 +17,7 @@
     "test:watch": "vitest --config vitest.config.ts",
     "test:typecheck": "tsc --project test/tsconfig.json --noEmit",
     "setup:local": "node scripts/setup-local.mts",
+    "setup:remote": "node scripts/setup-local.mts --remote --env production",
     "tokens": "node scripts/tokens.mts"
   },
   "dependencies": {

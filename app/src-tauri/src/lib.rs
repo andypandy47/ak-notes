@@ -1,23 +1,30 @@
 use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
-const DEVICE_CREDENTIAL_FILE: &str = "device-credential.hold";
-
-fn device_credential_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+fn device_credential_path(
+    app: &tauri::AppHandle,
+    environment: &str,
+) -> Result<std::path::PathBuf, String> {
+    let file_name = match environment {
+        "local" => "credential-local.hold",
+        "preview" => "credential-preview.hold",
+        "production" => "credential.hold",
+        _ => return Err("unsupported app environment".to_owned()),
+    };
     app.path()
         .app_local_data_dir()
-        .map(|directory| directory.join(DEVICE_CREDENTIAL_FILE))
+        .map(|directory| directory.join(file_name))
         .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-fn has_device_credential(app: tauri::AppHandle) -> Result<bool, String> {
-    Ok(device_credential_path(&app)?.is_file())
+fn has_device_credential(app: tauri::AppHandle, environment: String) -> Result<bool, String> {
+    Ok(device_credential_path(&app, &environment)?.is_file())
 }
 
 #[tauri::command]
-fn remove_device_credential(app: tauri::AppHandle) -> Result<(), String> {
-    let path = device_credential_path(&app)?;
+fn remove_device_credential(app: tauri::AppHandle, environment: String) -> Result<(), String> {
+    let path = device_credential_path(&app, &environment)?;
     match std::fs::remove_file(path) {
         Ok(()) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),

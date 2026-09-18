@@ -6,7 +6,10 @@
 verifies the API, migrates the preview D1 database, and uploads a uniquely tagged preview Worker
 version. The generated Worker preview URL is passed directly to the dependent Windows and
 Android builds as `VITE_API_URL`, so each app artifact targets the API version from the same
-commit.
+commit. Preview builds also set `VITE_APP_ENV=preview`, giving them a Stronghold credential
+snapshot separate from local development and production builds. Local development defaults to
+`local`; packaged builds default to `production`. Set `VITE_APP_ENV` explicitly whenever a
+custom build targets a different API environment.
 
 Create a GitHub environment named `preview` with environment secrets
 `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The token needs permission to upload Workers

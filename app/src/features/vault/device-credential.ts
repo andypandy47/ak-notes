@@ -3,16 +3,18 @@ import { appLocalDataDir, join } from "@tauri-apps/api/path";
 import { Stronghold, type Client } from "@tauri-apps/plugin-stronghold";
 import { deviceTokenSchema } from "./form-schemas";
 import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { env } from "@/config/environment";
 
 const CLIENT_NAME = "aknotes";
 const TOKEN_RECORD = "api-token";
-const SNAPSHOT_FILE = "device-credential.hold";
+const SNAPSHOT_FILE =
+  env.VITE_APP_ENV === "production" ? "credential.hold" : `credential-${env.VITE_APP_ENV}.hold`;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8", { fatal: true });
 
 let activeStronghold: Stronghold | null = null;
 
-const deviceCredentialKey = ["device-credential"] as const;
+const deviceCredentialKey = ["device-credential", env.VITE_APP_ENV] as const;
 
 async function lockSilently() {
   try {
@@ -78,7 +80,7 @@ export async function hasDeviceCredential() {
   if (!isTauri()) {
     return false;
   }
-  return invoke<boolean>("has_device_credential");
+  return invoke<boolean>("has_device_credential", { environment: env.VITE_APP_ENV });
 }
 
 export async function unlockDeviceCredential(passphrase: string) {
@@ -137,6 +139,6 @@ export async function lockDeviceCredential() {
 export async function forgetDeviceCredential() {
   await lockDeviceCredential();
   if (isTauri()) {
-    await invoke("remove_device_credential");
+    await invoke("remove_device_credential", { environment: env.VITE_APP_ENV });
   }
 }

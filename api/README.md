@@ -39,7 +39,7 @@ deployment contract.
 
 Open http://localhost:8787/ for the interactive documentation. The machine-readable contract is at /openapi.json. Use the token in the ignored `.dev.token` file in the documentation's Authorize dialog or the app's connection form. After migrations, setup imports the existing token into D1 and creates its owner record on first use. On a fresh checkout it creates the local token file first. Re-running setup is safe; it will not reactivate revoked or expired tokens. Existing `.dev.vars` files may remain, but their old token hash is ignored.
 
-Use Node.js 24 or newer for the TypeScript administration scripts. These commands use the local database under `.wrangler/state/v3`, matching Wrangler's default local persistence. They do not operate on a deployed database.
+Use Node.js 24 or newer for the TypeScript administration scripts. Commands use the local database under `.wrangler/state/v3` by default, matching Wrangler's local persistence. To import the existing `.dev.token` into the production D1 database after remote migrations, run `npm run setup:remote`. To import another token file, add `-- --token-file PATH`; the file is read without printing its contents. Remote access uses your Wrangler credentials.
 
 Wrangler persists local D1 data under `.wrangler/state`. The top-level `aknotes-local` binding is
 used by `dev`, `db:migrate`, `setup:local`, and the token administration commands. The remote
@@ -72,7 +72,14 @@ The issue command prints the token once, together with its `tok_` token ID and `
 
 A demo user enters their token and then creates their own vault passphrase and recovery key. They have no access to your vault or pages. Revocation and expiry are checked on every subsequent API request; an already-authorized in-flight request may finish, and downloaded data cannot be recalled. Token expiry does not delete the user's vault. The frontend notebook is still a session-only preview; encrypted page saving from the editor is a separate integration task.
 
-Remote issuance and deployment remain future work.
+Token administration can explicitly target a configured remote environment. Append `--remote --env production` (or `preview`) to `issue`, `list`, `revoke`, or `import`. For example:
+
+```sh
+npm run tokens -- import --token-file ./token.txt --remote --env production
+npm run tokens -- list --remote --env production
+```
+
+Local remains the default, and `--env` is rejected unless `--remote` is also present.
 
 ## Endpoints
 

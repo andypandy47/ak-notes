@@ -1,16 +1,28 @@
 import { createHash, randomBytes } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { fileURLToPath, pathToFileURL, URL } from "node:url";
 import { createApiTokenId, createUserId } from "../src/ids.ts";
 
-export async function openLocalDatabase() {
+type DatabaseTarget = { remote?: boolean; environment?: string };
+
+export async function openDatabase({ remote = false, environment }: DatabaseTarget = {}) {
+  if (!remote && environment !== undefined) {
+    throw new Error("--env can only be used with --remote.");
+  }
   const { getPlatformProxy } = await import("wrangler");
   return getPlatformProxy<{ DB: D1Database }>({
     configPath: fileURLToPath(new URL("../wrangler.jsonc", import.meta.url)),
-    persist: { path: fileURLToPath(new URL("../.wrangler/state/v3", import.meta.url)) },
-    remoteBindings: false,
+    ...(remote
+      ? { environment: environment ?? "production", remoteBindings: true }
+      : {
+          persist: { path: fileURLToPath(new URL("../.wrangler/state/v3", import.meta.url)) },
+          remoteBindings: false,
+        }),
   });
 }
+
+export const openLocalDatabase = () => openDatabase();
 
 export async function issueToken(
   db: D1Database,
@@ -66,9 +78,13 @@ export async function issueToken(
   return { id, userId, label: options.label.trim(), expiresAt, token };
 }
 
-export async function importPersonalToken(db: D1Database, token: string) {
+export async function importPersonalToken(
+  db: D1Database,
+  token: string,
+  label = "Personal local token",
+) {
   if (!/^[A-Za-z0-9_-]{43,128}$/.test(token)) {
-    throw new Error("The local token file is invalid.");
+    throw new Error("The token file is invalid.");
   }
   const hash = createHash("sha256").update(token).digest("hex");
   const createdAt = Date.now();
@@ -96,9 +112,9 @@ export async function importPersonalToken(db: D1Database, token: string) {
       .bind(userId, createdAt),
     db
       .prepare(
-        "INSERT INTO api_tokens (id, user_id, label, token_hash, created_at) VALUES (?1, ?2, 'Personal local token', ?3, ?4)",
+        "INSERT INTO api_tokens (id, user_id, label, token_hash, created_at) VALUES (?1, ?2, ?3, ?4, ?5)",
       )
-      .bind(id, userId, hash, createdAt),
+      .bind(id, userId, label, hash, createdAt),
   ]);
   if (results.some((result) => !result.success)) {
     throw new Error("Could not import the personal token.");
@@ -126,24 +142,44 @@ async function main() {
       label: { type: "string" },
       days: { type: "string" },
       id: { type: "string" },
+      remote: { type: "boolean" },
+      env: { type: "string" },
+      "token-file": { type: "string" },
     },
     allowPositionals: true,
   });
   const [command] = positionals;
-  if (positionals.length !== 1 || !["issue", "list", "revoke"].includes(command ?? "")) {
+  if (positionals.length !== 1 || !["issue", "list", "revoke", "import"].includes(command ?? "")) {
     throw new Error(
-      "Usage: npm run tokens -- issue --label demo [--name NAME] [--days 7] [--user USER_ID] | list [--user USER_ID] | revoke --id TOKEN_ID. Local database only.",
+      "Usage: npm run tokens -- <issue|list|revoke|import> [options] [--remote --env production]. Import requires --token-file PATH.",
     );
   }
   if (
-    (command === "issue" && (!values.label || values.id)) ||
-    (command === "list" && (values.name || values.label || values.days || values.id)) ||
+    (command === "issue" && (!values.label || values.id || values["token-file"])) ||
+    (command === "list" &&
+      (values.name || values.label || values.days || values.id || values["token-file"])) ||
     (command === "revoke" &&
-      (!values.id || values.name || values.label || values.days || values.user))
+      (!values.id ||
+        values.name ||
+        values.label ||
+        values.days ||
+        values.user ||
+        values["token-file"])) ||
+    (command === "import" &&
+      (!values["token-file"] ||
+        values.id ||
+        values.name ||
+        values.label ||
+        values.days ||
+        values.user)) ||
+    (!values.remote && values.env)
   ) {
-    throw new Error("Invalid command options. Issue needs --label; revoke needs --id.");
+    throw new Error(
+      "Invalid command options. Issue needs --label; revoke needs --id; import needs --token-file; --env needs --remote.",
+    );
   }
-  const proxy = await openLocalDatabase();
+  const target = values.remote ? `remote ${values.env ?? "production"}` : "local";
+  const proxy = await openDatabase({ remote: values.remote, environment: values.env });
   try {
     const db = proxy.env.DB;
     if (command === "issue") {
@@ -163,9 +199,13 @@ async function main() {
         .bind(values.user ?? null)
         .all();
       console.log(JSON.stringify(results, null, 2));
-    } else {
+    } else if (command === "revoke") {
       await revokeToken(db, values.id!);
-      console.log("Token revoked in the local database.");
+      console.log(`Token revoked in the ${target} database.`);
+    } else {
+      const token = readFileSync(values["token-file"]!, "utf8").trim();
+      const id = await importPersonalToken(db, token, "Personal imported token");
+      console.log(`Token imported into the ${target} database (${id}). Its value was not printed.`);
     }
   } finally {
     await proxy.dispose();

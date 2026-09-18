@@ -1,8 +1,10 @@
+import { env } from "@/config/environment";
+
 function apiBase() {
-  if (import.meta.env.DEV) {
+  if (env.DEV) {
     return "/api/v1";
   }
-  const base: string | undefined = import.meta.env.VITE_API_URL;
+  const base = env.VITE_API_URL;
   if (!base || new URL(base).protocol !== "https:") {
     throw new Error("Configure an HTTPS API URL before using a packaged app.");
   }

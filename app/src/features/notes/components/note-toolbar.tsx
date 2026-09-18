@@ -16,7 +16,7 @@ export function NoteToolbar() {
           {activeSummary ? activeSummary.title || "Untitled" : "Your pages"}
         </span>
       </div>
-      <Button variant="outline" size="sm" onClick={() => void lock()}>
+      <Button variant="outline" size="sm" onClick={() => lock()}>
         Lock
       </Button>
     </header>
