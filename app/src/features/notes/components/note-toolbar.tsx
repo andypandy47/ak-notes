@@ -1,10 +1,13 @@
 import { BookOpen } from "lucide-react";
 import { useNotebook } from "../hooks/use-notebook";
+import { useVault } from "@/features/vault/hooks/use-vault";
+import { Button } from "@/components/ui/button";
 
 export function NoteToolbar() {
   const { activeSummary } = useNotebook();
+  const { lock } = useVault();
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-border px-4 md:px-7">
+    <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border px-4 md:px-7">
       <div className="flex min-w-0 items-center gap-3 text-xs text-muted-foreground">
         <BookOpen className="size-4 shrink-0" aria-hidden="true" />
         <span className="hidden whitespace-nowrap sm:inline">My notebook</span>
@@ -13,9 +16,9 @@ export function NoteToolbar() {
           {activeSummary ? activeSummary.title || "Untitled" : "Your pages"}
         </span>
       </div>
-      <span className="hidden text-xs tracking-widest whitespace-nowrap text-muted-foreground lg:inline">
-        PERSONAL NOTEBOOK
-      </span>
+      <Button variant="outline" size="sm" onClick={() => void lock()}>
+        Lock
+      </Button>
     </header>
   );
 }

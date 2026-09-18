@@ -2,6 +2,7 @@ import { fromHono } from "chanfana";
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { bodyLimit } from "hono/body-limit";
+import { cors } from "hono/cors";
 import type { AppEnvironment } from "./types";
 import { authenticate } from "./middleware/auth";
 import { PageFetch } from "./pages/endpoints/pages-fetch";
@@ -14,6 +15,15 @@ import { VaultCreate } from "./vaults/endpoints/vaults-create";
 import { VaultPassphrase } from "./vaults/endpoints/vaults-passphrase";
 
 const app = new Hono<AppEnvironment>();
+app.use(
+  "/api/*",
+  cors({
+    origin: "http://tauri.localhost",
+    allowHeaders: ["Authorization", "Content-Type"],
+    allowMethods: ["GET", "POST", "PUT", "OPTIONS"],
+    maxAge: 86400,
+  }),
+);
 app.use("/api/*", authenticate);
 app.use(
   "/api/*",
