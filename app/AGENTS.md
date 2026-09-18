@@ -61,4 +61,14 @@ pulled into components.
 
 ### Tanstack
 
-When writing tanstack queries try to keep abstraction to a minimum. Don't abstract query options into their own vars just write them directly in the query.
+- When writing TanStack queries and mutations, keep abstraction to a minimum.
+- Write query and mutation options directly in `useQuery` and `useMutation`; do not extract
+  single-use options objects.
+- Keep the complete async workflow for a query or mutation—including SQL calls and the
+  associated encryption/decryption calls—directly inside its `queryFn` or `mutationFn` when
+  that workflow is only used by that hook.
+- Do not extract single-use async query or mutation workflows into repository functions,
+  service methods, or local helper functions that merely forward their result to one hook.
+- Extract an async operation only when it has multiple genuine callers or represents a shared
+  primitive independently of TanStack Query. Synchronous schemas, constants, parsing helpers,
+  and query-key factories may remain shared where useful.
