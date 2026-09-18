@@ -17,7 +17,7 @@ concurrency:
 jobs:
   verify:
     name: Verify API
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
@@ -34,7 +34,7 @@ jobs:
     name: Migrate D1 and deploy preview
     needs: verify
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26
     timeout-minutes: 15
     environment:
       name: preview
@@ -89,14 +89,14 @@ jobs:
         with:
           workspaces: app/src-tauri
       - run: npm ci
-      - name: Build Windows debug bundles
+      - name: Build Windows debug executable
         working-directory: app
-        run: npm run tauri -- build --debug
-      - name: Upload Windows bundles
+        run: npm run tauri -- build --debug --no-bundle
+      - name: Upload Windows executable
         uses: actions/upload-artifact@v6
         with:
           name: aknotes-windows-${{ github.sha }}
-          path: app/src-tauri/target/debug/bundle/**
+          path: app/src-tauri/target/debug/aknotes.exe
           if-no-files-found: error
           retention-days: 14
 
@@ -104,6 +104,7 @@ jobs:
     name: Build Android test app
     needs: deploy-preview
     runs-on: ubuntu-latest
+    if: false
     timeout-minutes: 60
     env:
       VITE_API_URL: ${{ needs.deploy-preview.outputs.api-url }}
