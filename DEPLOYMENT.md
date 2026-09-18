@@ -1,47 +1,25 @@
 # Deployment and releases
 
-## API production deployment
+## Preview stack and app test builds
 
-`.github/workflows/deploy-api.yml` verifies the API, applies all pending D1 migrations, and
-then deploys the Worker. It runs for API changes pushed to `master` and can also be run
-manually. GitHub serializes production deployments so migrations and Worker uploads cannot
-overlap.
+`.github/workflows/deploy-api.yml` runs on pushes to `main`, pull requests, and manual runs. It
+verifies the API, migrates the preview D1 database, and uploads a uniquely tagged preview Worker
+version. The generated Worker preview URL is passed directly to the dependent Windows and
+Android builds as `VITE_API_URL`, so each app artifact targets the API version from the same
+commit.
 
-Create a GitHub environment named `production`, then configure:
+Create a GitHub environment named `preview` with environment secrets
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The token needs permission to upload Workers
+and edit the preview D1 database, scoped to the relevant Cloudflare account. Migrations run
+before the Worker upload, and a migration failure prevents both app builds.
 
-- Environment secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+The workflow builds unsigned Windows debug bundles and an Android debug APK. Outputs are stored
+as GitHub Actions artifacts for 14 days; the workflow does not create Git tags or GitHub
+Releases. The Android project is generated non-interactively on the runner before each build, so
+`app/src-tauri/gen/android` does not need to be committed solely for CI.
 
-The Cloudflare token needs permission to deploy Workers and edit the production D1 database.
-Scope it to the relevant account. The production `aknotes-prod` D1 binding is declared under the
-explicit `production` environment in `api/wrangler.jsonc`. CI always supplies
-`--env production`; local commands use the separate top-level `aknotes-local` binding.
+Pull requests from forks cannot access the Cloudflare environment secrets. The preview deploy
+and its dependent app builds are therefore skipped for fork-originated pull requests.
 
-Migrations run before the Worker upload and a migration failure prevents deployment. Schema
-changes should therefore use an expand-and-contract approach: add backwards-compatible schema
-first, deploy code that uses it, and remove old schema in a later deployment.
-
-## Desktop app releases
-
-`.github/workflows/release-app.yml` builds Linux x64, Windows x64, macOS Intel, and macOS Apple
-Silicon bundles and publishes them to one GitHub release. Configure repository variable
-`VITE_API_URL` with the deployed API's HTTPS origin, without `/api/v1`.
-
-Keep these versions equal before releasing:
-
-- `app/package.json`
-- `app/src-tauri/tauri.conf.json`
-- `app/src-tauri/Cargo.toml`
-
-Push a tag matching the application version to publish a release. For version `0.1.0`:
-
-```sh
-git tag app-v0.1.0
-git push origin app-v0.1.0
-```
-
-The workflow rejects a pushed tag that does not match `app/package.json`. A manual run uses the
-version from `app/package.json` and creates the matching `app-v<version>` release.
-
-The generated packages are currently unsigned. Before distributing to end users, configure
-Apple notarization/signing and Windows code signing; unsigned builds can trigger operating
-system warnings.
+These packages are intended for testing. A distributable release still requires Windows code
+signing and an Android release keystore.
