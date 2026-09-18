@@ -48,8 +48,8 @@ function NotebookPersistenceStatus() {
     if (sync.status === "error") {
       return (
         <>
-          <CircleAlert className="size-4 stroke-red-500" />{" "}
-          {sync.error?.message ?? "Saved on this device · sync needs attention"}
+          <CircleAlert className="size-4 stroke-red-500" />
+          {sync.error?.message ?? "Something went wrong. Sync needs attention"}
         </>
       );
     }

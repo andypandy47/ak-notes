@@ -1,10 +1,11 @@
+import { env } from "@/config/environment";
 import { Notebook } from "@/features/notes/components/notebook";
 import { NotebookProvider } from "@/features/notes/context/notebook-provider";
 import { SyncProvider } from "@/features/sync/sync-provider";
 import { VaultGate } from "@/features/vault/components/vault-gate";
 import { VaultProvider } from "@/features/vault/context/vault-provider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools/production";
 import { useState } from "react";
 
 export default function App() {
@@ -20,7 +21,7 @@ export default function App() {
           </SyncProvider>
         </VaultGate>
       </VaultProvider>
-      <ReactQueryDevtools initialIsOpen={false} />
+      {env.ENABLE_QUERY_DEVTOOLS && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   );
 }

@@ -8,7 +8,7 @@ The database contains `users`, `vaults`, and `pages`. Resource IDs are uppercase
 
 Authentication hashes the bearer token and looks it up in `api_tokens`. Only an unrevoked token whose optional expiry is in the future can authenticate. The middleware sets a typed `ownerId` from the token's `user_id`; request input cannot choose an owner. All vault and page service calls scope their SQL to this identity. Each user has their own vault and may have multiple tokens for different devices. Page saves also require the key ID to match the owned vault.
 
-The API stores only SHA-256 token hashes. Tokens are 32 random bytes encoded as base64url, not user-chosen passwords. The old `API_TOKEN_SHA256` environment setting is no longer used and cannot bypass revocation. Missing, invalid, expired and revoked tokens return 401. Authentication storage failures return 503. Token administration is a local operator command, not a public API endpoint.
+The API stores only SHA-256 token hashes. Tokens are 32 random bytes encoded as base64url, not user-chosen passwords. Missing, invalid, expired and revoked tokens return 401. Authentication storage failures return 503. Token administration is a local operator command, not a public API endpoint.
 
 Users have a display name and creation timestamp in addition to their stable ID. A user row is the authentication principal representing an owner, not a public account model. Local setup creates a prefixed user ID when it first registers the development token.
 
@@ -37,7 +37,7 @@ schema, then let Drizzle generate the SQL. Commit generated SQL and the matching
 `migrations/meta/` together. Avoid `drizzle-kit push`: reviewed migration files are the
 deployment contract.
 
-Open http://localhost:8787/ for the interactive documentation. The machine-readable contract is at /openapi.json. Use the token in the ignored `.dev.token` file in the documentation's Authorize dialog or the app's connection form. After migrations, setup imports the existing token into D1 and creates its owner record on first use. On a fresh checkout it creates the local token file first. Re-running setup is safe; it will not reactivate revoked or expired tokens. Existing `.dev.vars` files may remain, but their old token hash is ignored.
+Open http://localhost:8787/ for the interactive documentation. The machine-readable contract is at /openapi.json. Use the token in the ignored `.dev.token` file in the documentation's Authorize dialog or the app's connection form. After migrations, setup imports the existing token into D1 and creates its owner record on first use. On a fresh checkout it creates the local token file first. Re-running setup is safe; it will not reactivate revoked or expired tokens.
 
 Use Node.js 24 or newer for the TypeScript administration scripts. Commands use the local database under `.wrangler/state/v3` by default, matching Wrangler's local persistence. To import the existing `.dev.token` into the production D1 database after remote migrations, run `npm run setup:remote`. To import another token file, add `-- --token-file PATH`; the file is read without printing its contents. Remote access uses your Wrangler credentials.
 
@@ -80,6 +80,8 @@ npm run tokens -- list --remote --env production
 ```
 
 Local remains the default, and `--env` is rejected unless `--remote` is also present.
+The preview and production D1 bindings are marked `remote: true` so Wrangler's platform proxy
+routes these administration commands to Cloudflare rather than to an empty local simulation.
 
 ## Endpoints
 

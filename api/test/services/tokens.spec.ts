@@ -100,7 +100,3 @@ describe("token lifecycle", () => {
     ).toBe(404);
   });
 });
-
-it("does not accept an obsolete environment-token fallback", async () => {
-  expect((await apiRequest({ path: "/api/v1/vaults", token: "x".repeat(43) })).status).toBe(401);
-});

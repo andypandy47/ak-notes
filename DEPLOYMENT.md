@@ -9,7 +9,9 @@ Android builds as `VITE_API_URL`, so each app artifact targets the API version f
 commit. Preview builds also set `VITE_APP_ENV=preview`, giving them a Stronghold credential
 snapshot separate from local development and production builds. Local development defaults to
 `local`; packaged builds default to `production`. Set `VITE_APP_ENV` explicitly whenever a
-custom build targets a different API environment.
+custom build targets a different API environment. Preview artifacts set
+`VITE_ENABLE_QUERY_DEVTOOLS=true` so TanStack Query Devtools remain available in the packaged
+production-mode bundle; production releases omit the flag and do not mount the tools.
 
 Create a GitHub environment named `preview` with environment secrets
 `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The token needs permission to upload Workers

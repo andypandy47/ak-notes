@@ -8,8 +8,6 @@ export default defineConfig({
       wrangler: { configPath: "./wrangler.jsonc" },
       miniflare: {
         bindings: {
-          // An obsolete environment hash must never bypass database-backed revocation.
-          API_TOKEN_SHA256: "unused-legacy-value",
           TEST_MIGRATIONS: await readD1Migrations(path.join(import.meta.dirname, "migrations")),
         },
       },

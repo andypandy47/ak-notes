@@ -79,6 +79,7 @@ jobs:
     env:
       VITE_API_URL: ${{ needs.deploy-preview.outputs.api-url }}
       VITE_APP_ENV: preview
+      VITE_ENABLE_QUERY_DEVTOOLS: "true"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
@@ -109,6 +110,7 @@ jobs:
   #   env:
   #     VITE_API_URL: ${{ needs.deploy-preview.outputs.api-url }}
   #     VITE_APP_ENV: preview
+  #     VITE_ENABLE_QUERY_DEVTOOLS: "true"
   #   steps:
   #     - uses: actions/checkout@v7
   #     - uses: actions/setup-node@v6

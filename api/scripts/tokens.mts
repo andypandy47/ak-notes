@@ -189,7 +189,7 @@ async function main() {
         label: values.label!,
         days: values.days === undefined ? undefined : Number(values.days),
       });
-      console.log("Save this token now; only its hash is stored in the local database.");
+      console.log(`Save this token now; only its hash is stored in the ${target} database.`);
       console.log(JSON.stringify(issued, null, 2));
     } else if (command === "list") {
       const { results } = await db
