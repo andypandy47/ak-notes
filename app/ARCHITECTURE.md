@@ -20,9 +20,11 @@ Sidebar visibility belongs to shadcn's `SidebarProvider`, composed in the notebo
 
 The local SQLite database containing encrypted page data is the notebook's durable working copy. Each local page upsert also queues its pending sync operation through a SQLite trigger in the same transaction. Sync runs after unlock, after a local commit, and when connectivity returns. A revision conflict keeps the local operation queued and reports an error; richer conflict handling and an incremental server feed can replace this simple policy later without changing notes components.
 
-Saved API credentials are isolated by `VITE_APP_ENV`. Local, preview, and production use
-`credential-local.hold`, `credential-preview.hold`, and `credential.hold`. Only the matching
-snapshot is detected, unlocked, or removed by a build. Build configuration is parsed once
+Device data is isolated by Tauri identifier: local, preview, and production use
+`com.aknotes.local`, `com.aknotes.preview`, and `com.aknotes`, respectively. This gives each
+environment its own SQLite database and Stronghold state. Within those directories, saved API
+credentials use `credential-local.hold`, `credential-preview.hold`, and `credential.hold`. Only
+the matching snapshot is detected, unlocked, or removed by a build. Build configuration is parsed once
 through the Zod schema in `src/config/environment.ts` and consumed through its `env` object.
 
 The dependency boundaries above are conventions for now, not ESLint-enforced rules.

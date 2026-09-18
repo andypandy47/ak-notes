@@ -6,10 +6,13 @@
 verifies the API, migrates the preview D1 database, and uploads a uniquely tagged preview Worker
 version. The generated Worker preview URL is passed directly to the dependent Windows and
 Android builds as `VITE_API_URL`, so each app artifact targets the API version from the same
-commit. Preview builds also set `VITE_APP_ENV=preview`, giving them a Stronghold credential
-snapshot separate from local development and production builds. Local development defaults to
-`local`; packaged builds default to `production`. Set `VITE_APP_ENV` explicitly whenever a
-custom build targets a different API environment. Preview artifacts set
+commit. Preview builds also set `VITE_APP_ENV=preview` and merge
+`src-tauri/tauri.preview.conf.json`, giving them the distinct `com.aknotes.preview` Tauri
+identifier and app-data directory. Local development uses `npm run tauri:dev --workspace app`
+to merge `src-tauri/tauri.local.conf.json` and use `com.aknotes.local`. Production keeps the base
+`com.aknotes` identifier. The separate directories isolate SQLite data, Stronghold state, and
+credentials between all three environments. Set `VITE_APP_ENV` and the matching Tauri config
+explicitly whenever a custom build targets a different API environment. Preview artifacts set
 `VITE_ENABLE_QUERY_DEVTOOLS=true` so TanStack Query Devtools remain available in the packaged
 production-mode bundle; production releases omit the flag and do not mount the tools.
 

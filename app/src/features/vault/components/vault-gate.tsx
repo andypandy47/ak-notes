@@ -15,6 +15,10 @@ export function VaultGate({ children }: { children: ReactNode }) {
   const { isManualTokenEntryRequested, connection, session, hasDeviceCredential, connect } =
     useVault();
 
+  if (session && connection) {
+    return children;
+  }
+
   if (hasDeviceCredential.isLoading) {
     return (
       <VaultPanel
@@ -25,10 +29,6 @@ export function VaultGate({ children }: { children: ReactNode }) {
         <></>
       </VaultPanel>
     );
-  }
-
-  if (session && connection) {
-    return children;
   }
 
   if (connection) {

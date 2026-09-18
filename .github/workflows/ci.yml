@@ -93,7 +93,7 @@ jobs:
       - run: npm ci
       - name: Build Windows debug executable
         working-directory: app
-        run: npm run tauri -- build --debug --no-bundle
+        run: npm run tauri -- build --debug --no-bundle --config src-tauri/tauri.preview.conf.json
       - name: Upload Windows executable
         uses: actions/upload-artifact@v6
         with:
@@ -135,7 +135,7 @@ jobs:
   #       run: npm run tauri -- android init --ci
   #     - name: Build Android debug APK
   #       working-directory: app
-  #       run: npm run tauri -- android build --debug --apk --ci
+  #       run: npm run tauri -- android build --debug --apk --ci --config src-tauri/tauri.preview.conf.json
   #     - name: Upload Android APK
   #       uses: actions/upload-artifact@v6
   #       with:
